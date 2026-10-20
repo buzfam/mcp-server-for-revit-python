@@ -11,7 +11,8 @@ do código. A implementação segue a skill `add-mcp-tool`.
 | 002 | [get_element_parameters](002-get-element-parameters.md) | leitura | Implementada (não validada no Revit) |
 | 003 | [bulk_set_parameters](003-bulk-set-parameters.md) | escrita | Proposta |
 | 004 | [model_health_report](004-model-health-report.md) | leitura | Proposta |
-| 005 | [Fábrica: hub + agentes](005-fleet-hub.md) | arquitetura | Proposta |
+| 005 | [Fábrica: hub + agentes](005-fleet-hub.md) | arquitetura | Proposta (adiada; primeiro a 006) |
+| 006 | [Acesso pela rede (direto)](006-network-access.md) | transporte | Implementada (não validada no Revit) |
 
 Status: **Proposta** → **Em desenvolvimento** → **Implementada (não validada no Revit)** → **Validada no Revit <ano>**.
 

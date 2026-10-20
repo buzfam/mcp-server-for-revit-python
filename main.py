@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import argparse
+import functools
 import os
 import sys
 import httpx
@@ -6,8 +8,16 @@ import anyio
 from mcp.server.fastmcp import FastMCP, Image, Context
 import base64
 from typing import Optional, Dict, Any, Union
-from revit_mcp.pairing import authorization_headers
+from revit_mcp.pairing import authorization_headers, validate_request
 from tools.http_security import PairingMiddleware
+from tools.remote_access import (
+    LOOPBACK_HOSTS,
+    RemoteAccessError,
+    create_remote_token,
+    get_remote_token,
+    revoke_remote_token,
+    validate_remote_request,
+)
 
 # Create a generic MCP server for interacting with Revit
 # Use stateless_http=True and json_response=True for better compatibility
@@ -86,8 +96,12 @@ from tools import register_tools
 register_tools(mcp, revit_get, revit_post, revit_image)
 
 
-def build_http_app(transport):
-    """Build an authenticated app for the selected loopback transport."""
+def build_http_app(transport, remote=False):
+    """Build an authenticated app for the selected HTTP transport.
+
+    Loopback mode checks the pairing secret; remote (network) mode checks the
+    separate remote access token.
+    """
     if transport not in {"sse", "streamable-http", "combined"}:
         raise ValueError("Unknown HTTP transport.")
     if transport == "sse":
@@ -96,36 +110,136 @@ def build_http_app(transport):
         http_app = mcp.streamable_http_app()
         if transport == "combined":
             http_app.routes.extend(mcp.sse_app().routes)
-    http_app.add_middleware(PairingMiddleware)
+    validator = validate_remote_request if remote else validate_request
+    http_app.add_middleware(PairingMiddleware, validator=validator)
     return http_app
 
 
-async def run_http_async(transport):
-    """Run paired, loopback-only SSE, streamable HTTP, or both."""
+def network_host_names(bind_host, extra_hosts=()):
+    """Host header values a remote client may use to reach this server."""
+    import socket
+    names = set(extra_hosts)
+    if bind_host in {"0.0.0.0", "::"}:
+        hostname = socket.gethostname()
+        names.update({hostname, socket.getfqdn()})
+        try:
+            names.update(socket.gethostbyname_ex(hostname)[2])
+        except OSError:
+            pass
+        try:
+            # Address of the interface holding the default route; no packet is sent.
+            probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                probe.connect(("10.255.255.255", 1))
+                names.add(probe.getsockname()[0])
+            finally:
+                probe.close()
+        except OSError:
+            pass
+    else:
+        names.add(bind_host)
+    return sorted(name for name in names
+                  if name and name not in LOOPBACK_HOSTS
+                  and not name.endswith(".arpa") and name != "0.0.0.0")
+
+
+def allow_network_hosts(names):
+    """FastMCP's DNS-rebinding protection only admits loopback Host headers
+    by default; add the names remote clients will use."""
+    security = mcp.settings.transport_security
+    if security is None:
+        return
+    for name in names:
+        entry = "[{}]:*".format(name) if ":" in name else "{}:*".format(name)
+        if entry not in security.allowed_hosts:
+            security.allowed_hosts.append(entry)
+
+
+async def run_http_async(transport, host=None, port=None, remote=False,
+                         ssl_certfile=None, ssl_keyfile=None):
+    """Run authenticated SSE, streamable HTTP, or both."""
     import uvicorn
-    http_app = build_http_app(transport)
+    http_app = build_http_app(transport, remote=remote)
 
     config = uvicorn.Config(
         http_app,
-        host=mcp.settings.host,
-        port=mcp.settings.port,
+        host=host or mcp.settings.host,
+        port=port or mcp.settings.port,
         log_level=mcp.settings.log_level.lower(),
+        ssl_certfile=ssl_certfile,
+        ssl_keyfile=ssl_keyfile,
     )
     server = uvicorn.Server(config)
     await server.serve()
 
 
-if __name__ == "__main__":
-    transport = "stdio"
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description="Revit MCP Server")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--sse", dest="transport", action="store_const", const="sse")
+    modes.add_argument("--http", "--streamable-http", dest="transport",
+                       action="store_const", const="streamable-http")
+    modes.add_argument("--combined", dest="transport", action="store_const", const="combined")
+    parser.add_argument("--host", default="127.0.0.1",
+                        help="Address to listen on. A non-loopback address (e.g. 0.0.0.0 "
+                             "or this PC's IP) enables network access with the remote token.")
+    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--allowed-host", action="append", default=[],
+                        help="Extra host name clients use to reach this PC (repeatable).")
+    parser.add_argument("--ssl-certfile", help="TLS certificate (PEM) for network mode.")
+    parser.add_argument("--ssl-keyfile", help="TLS private key (PEM) for network mode.")
+    parser.add_argument("--remote-token", choices=["new", "revoke"],
+                        help="Create/rotate or revoke the network access token, then exit.")
+    parser.set_defaults(transport="stdio")
+    args = parser.parse_args(argv)
 
-    if "--sse" in sys.argv:
-        transport = "sse"
-    elif "--http" in sys.argv or "--streamable-http" in sys.argv:
-        transport = "streamable-http"
-    elif "--combined" in sys.argv:
-        transport = "combined"
+    if bool(args.ssl_certfile) != bool(args.ssl_keyfile):
+        parser.error("--ssl-certfile and --ssl-keyfile must be used together.")
+    if not 1 <= args.port <= 65535:
+        parser.error("--port must be between 1 and 65535.")
+    args.remote = args.host not in LOOPBACK_HOSTS
+    if args.remote and args.transport == "stdio":
+        parser.error("Network access needs an HTTP transport: add --http.")
+    return args
 
-    if transport == "stdio":
+
+def main(argv=None):
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+
+    if args.remote_token == "new":
+        token = create_remote_token()
+        print("Remote access token (shown once; rotating invalidates the previous one):")
+        print(token)
+        return
+    if args.remote_token == "revoke":
+        revoke_remote_token()
+        print("Remote access token revoked.")
+        return
+
+    if args.transport == "stdio":
         mcp.run(transport="stdio")
-    else:
-        anyio.run(run_http_async, transport)
+        return
+
+    if args.remote:
+        try:
+            get_remote_token()
+        except RemoteAccessError as error:
+            sys.exit(str(error))
+        names = network_host_names(args.host, args.allowed_host)
+        allow_network_hosts(names)
+        scheme = "https" if args.ssl_certfile else "http"
+        print("Network mode. Clients connect to:", file=sys.stderr)
+        for name in names:
+            print("  {}://{}:{}/mcp".format(scheme, name, args.port), file=sys.stderr)
+        if not args.ssl_certfile:
+            print("WARNING: no TLS. The token travels in clear text on the network; "
+                  "use --ssl-certfile/--ssl-keyfile outside a trusted LAN.", file=sys.stderr)
+
+    anyio.run(functools.partial(
+        run_http_async, args.transport, host=args.host, port=args.port,
+        remote=args.remote, ssl_certfile=args.ssl_certfile,
+        ssl_keyfile=args.ssl_keyfile))
+
+
+if __name__ == "__main__":
+    main()

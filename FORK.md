@@ -28,6 +28,7 @@ relatos, só **lê** o modelo. O diferencial deste fork é:
 | Guia para agentes | — | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/` |
 | Acompanhamento | — | `HANDOFF.md`, `CHANGELOG.md`, `docs/specs/` |
 | `.gitignore` | ignora `CLAUDE.md` | `CLAUDE.md` versionado |
+| Rede | só loopback | também modo remoto com token próprio (`--http --host`), ponte com o Revit segue loopback |
 
 Segurança herdada e mantida: pareamento DPAPI, só loopback, diálogo de
 aprovação para tudo que altera o modelo.
@@ -47,7 +48,8 @@ parâmetros em massa, saúde do modelo, tags, templates). Status em `docs/specs/
 | 006 | `apply_view_template` (lote) | escrita | Templates em muitas vistas |
 | 007 | `tag_elements` | escrita | Tags por categoria e vista (generaliza `tag_walls`) |
 | 008 | `export_schedule` / `export_rooms` | leitura | Dados para CSV/Excel |
-| 005 | **Fábrica**: hub central + agentes nos PCs | arquitetura | Controlar vários Revits em vários PCs da empresa pela rede |
+| 006 | **Acesso pela rede direto** (feito) | transporte | Agente em outra máquina controla o Revit pelo IP do PC ([guia](docs/acesso-remoto.md)) |
+| 005 | **Fábrica**: hub central + agentes nos PCs | arquitetura | Vários PCs num ponto só, com aprovação e auditoria centrais |
 
 Specs detalhadas existem para 001 a 004; as demais são escritas quando entrarem
 em desenvolvimento.

@@ -1,3 +1,8 @@
+> **Fork buzfam:** este fork acrescenta um modo remoto opcional (`main.py --http --host`)
+> com token próprio, lista de `Host` e TLS opcional; a ponte com o Revit continua só em
+> loopback. O texto abaixo é do upstream e descreve o modo local. Veja
+> [docs/specs/006-network-access.md](docs/specs/006-network-access.md).
+
 # Security boundaries and reporting
 
 The review candidate requires Windows-user pairing for every registered tool.

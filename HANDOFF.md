@@ -10,15 +10,19 @@ _Última atualização: 2026-10-20_
 - Fork sincronizado com o upstream em `6ca46b3` (merge do PR #69 upstream).
 - 22 tools: as 20 do upstream + `get_selected_elements` (001) e
   `get_element_parameters` (002), mescladas no `master`. **Não validadas no Revit.**
-- Spec 005 (fábrica: hub central + agentes nos PCs) escrita; fase 1 não iniciada.
+- **Modo remoto direto (spec 006) implementado**: `main.py --http --host <IP>` +
+  token remoto. Testado no macOS (unitários + smoke test pela rede com token
+  simulado). **Não validado no Windows/Revit.** Guia: `docs/acesso-remoto.md`.
+- Spec 005 (fábrica com hub) escrita e **adiada** a pedido do usuário: primeiro
+  funcionar com o IP direto.
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
-- Testes (macOS): `108 passed, 9 skipped`; manifest confere 22 tools.
+- Testes (macOS): `120 passed, 10 skipped`; manifest confere 22 tools.
 
 ## Próximos passos
 
-1. **Fábrica, fase 1** (spec 005): extrair `_revit_call` para módulo
-   reutilizável, agente mínimo e hub mínimo só leitura (`--insecure-dev`).
+1. **Validar o modo remoto no Windows** (checklist da spec 006) quando o
+   usuário instalar no PC: token DPAPI, firewall, cliente em outra máquina.
 2. **003 `bulk_set_parameters`** — spec 003; usa 002 para ler valores antes/depois.
 3. **004 `model_health_report`** — spec 004.
 4. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
@@ -37,6 +41,8 @@ _Última atualização: 2026-10-20_
 | 2026-10-20 | Campo de ID nas respostas: `element_id` | Consistência com as rotas existentes |
 | 2026-10-20 | Fábrica = hub central + agente por PC (conexão de saída); ponte com o Revit segue loopback | Não expor execução de código na rede; token DPAPI não sai do PC; escala para N PCs |
 | 2026-10-20 | Fábrica: estações de trabalho, aprovação de escrita no hub, diálogo no Revit mantido, hub numa VM | Decisão do usuário |
+| 2026-10-20 | Antes do hub: modo remoto direto pelo IP do PC (spec 006) | Usuário quer funcionar simples primeiro |
+| 2026-10-20 | Token remoto separado do pareamento; TLS opcional com aviso | Revogar acesso pela rede sem quebrar o local; facilitar o piloto em LAN |
 
 ## Pendências e riscos
 

@@ -64,10 +64,15 @@ Baseline em 2026-10-20 (macOS): `97 passed, 9 skipped`; manifest com 20 tools.
    registro em `tools/__init__.py`, descrição em `tools/catalog.py`,
    `READ_ONLY` em `tools/registration.py` se for só leitura. Depois:
    regenerar o manifest, teste do wrapper em `tests/unit/`, `CHANGELOG.md`.
-5. **A ponte com o Revit é só loopback.** Não aceite host remoto no `main.py`
-   nem exponha o pyRevit Routes na rede. Acesso pela rede existe **apenas** no
-   modo fábrica (spec 005): agente no PC com conexão de saída para o hub, TLS,
-   tokens e auditoria. Não crie outro caminho de rede.
+5. **A ponte com o Revit é só loopback.** `main.py → pyRevit Routes` sempre
+   em `127.0.0.1`; nunca exponha o pyRevit Routes na rede. Acesso pela rede
+   existe só por dois caminhos documentados:
+   - **modo remoto direto** (spec 006): o `main.py` escuta num IP com `--http --host`,
+     autenticado pelo **token remoto** (`tools/remote_access.py`), com a lista de
+     `Host` do FastMCP e TLS opcional;
+   - **fábrica** (spec 005, futura): hub central + agentes.
+   Não crie outro caminho de rede, não aceite o token de pareamento pela rede e
+   não desligue a proteção de DNS rebinding.
 6. **Respostas JSON pequenas.** Tools de listagem precisam de filtro e limite
    (padrão sugerido: `limit=200`) para não estourar o contexto do LLM.
 7. **Erros**: rota devolve `routes.make_response(data={"error": ...}, status=4xx/5xx)`;
