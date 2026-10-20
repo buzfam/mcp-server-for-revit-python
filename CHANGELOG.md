@@ -17,7 +17,7 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`add-mcp-tool`, `sync-upstream`, `session-handoff`).
 - `FORK.md` (propósito e roadmap do fork), `HANDOFF.md` e este `CHANGELOG.md`.
 - Specs em `docs/specs/`: 001 `get_selected_elements`, 002 `get_element_parameters`,
-  003 `bulk_set_parameters`, 004 `model_health_report`.
+  003 `bulk_set_parameters`, 004 `model_health_report`, 005 fábrica (hub + agentes).
 
 ### Alterado
 - `CLAUDE.md` deixa de ser ignorado pelo `.gitignore`.

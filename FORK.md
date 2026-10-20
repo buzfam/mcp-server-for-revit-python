@@ -17,6 +17,8 @@ relatos, só **lê** o modelo. O diferencial deste fork é:
 2. **Relatórios prontos** (saúde do modelo, seleção, parâmetros) que poupam o
    LLM de escrever IronPython via `execute_revit_code`.
 3. Compatibilidade com **Revit 2026 e anteriores**, que não têm o MCP nativo.
+4. **Modo fábrica** (spec 005): vários Revits em vários PCs controlados por um
+   hub central, com aprovação e auditoria.
 
 ## O que muda em relação ao upstream
 
@@ -45,6 +47,7 @@ parâmetros em massa, saúde do modelo, tags, templates). Status em `docs/specs/
 | 006 | `apply_view_template` (lote) | escrita | Templates em muitas vistas |
 | 007 | `tag_elements` | escrita | Tags por categoria e vista (generaliza `tag_walls`) |
 | 008 | `export_schedule` / `export_rooms` | leitura | Dados para CSV/Excel |
+| 005 | **Fábrica**: hub central + agentes nos PCs | arquitetura | Controlar vários Revits em vários PCs da empresa pela rede |
 
 Specs detalhadas existem para 001 a 004; as demais são escritas quando entrarem
 em desenvolvimento.
