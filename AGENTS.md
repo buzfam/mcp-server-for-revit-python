@@ -45,6 +45,8 @@ uv run --frozen python scripts/export_mcp_manifest.py            # regenerar o m
 uv run --frozen python scripts/export_mcp_manifest.py --check    # o que o CI roda
 uv run --frozen --extra test python -m pytest tests/integration -m integration  # só no Windows com Revit aberto e pareado
 uv run --frozen python scripts/smoke.py --url http://<IP>:8000/mcp --token <TOKEN>  # homologação contra um Revit real (ou --local)
+# IronPython 2.7: roda no CI (workflow ironpython.yml). Ao criar módulo novo em revit_mcp/ com
+# funções puras, acrescente uma checagem em scripts/ironpython_check.py.
 ```
 
 Baseline em 2026-10-20 (macOS): `97 passed, 9 skipped`; manifest com 20 tools.

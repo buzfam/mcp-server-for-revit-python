@@ -22,6 +22,10 @@ _Última atualização: 2026-10-20_
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
 - Testes (macOS): `180 passed, 10 skipped`; manifest confere 24 tools.
+- CI no Windows (GitHub Actions, 2026-10-20): `190 passed` em Python 3.11 e 3.13
+  (inclui os testes de DPAPI) e **IronPython 2.7.12 ok**: 21 arquivos do lado
+  Revit compilam, helpers puros rodam com semântica Py2 e o token remoto faz a
+  ida e volta pelo DPAPI via .NET.
 - **Kit de homologação**: `scripts/smoke.py` + `docs/homologacao.md`. Rodado no
   macOS contra um pyRevit Routes falso: 18 ok, 1 aviso (ver pendências), 0 falhas.
 
@@ -35,9 +39,8 @@ _Última atualização: 2026-10-20_
    usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
    terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
    firewall, cliente em outra máquina.
-2. **CI de IronPython** (compilar `revit_mcp/`, `startup.py`, `MCP.tab/` com IronPython 2.7 no Windows).
-3. Próximas tools do roadmap (`FORK.md`): 005 folhas, 006 templates em lote, 007 tags, 008 exportar tabelas.
-4. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
+2. Próximas tools do roadmap (`FORK.md`): 005 folhas, 006 templates em lote, 007 tags, 008 exportar tabelas.
+3. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
    usuário instalar no PC. Ponto de maior risco: `element_id_from_int`
    (overload Int64/Int32 do construtor de `ElementId` no IronPython).
 

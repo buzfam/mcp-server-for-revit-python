@@ -7,6 +7,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Adicionado
+- CI `IronPython 2.7 compatibility` (`.github/workflows/ironpython.yml` +
+  `scripts/ironpython_check.py`): compila todo o código que roda no Revit com
+  IronPython 2.7.12 no Windows, executa as funções puras com semântica de
+  Python 2 e faz a ida e volta do token remoto pelo DPAPI via .NET.
 - Tool `bulk_set_parameters` (spec 003): altera parâmetros de até 500 elementos
   numa transação só, tudo ou nada. `dry_run` (padrão) valida dentro de uma
   transação desfeita e mostra antes/depois; a aplicação real abre um único
