@@ -1,3 +1,7 @@
+> **Fork buzfam.** Este é o fork da org buzfam; as mudanças daqui não são enviadas
+> para o upstream. Veja [FORK.md](FORK.md) (propósito e roadmap), [HANDOFF.md](HANDOFF.md)
+> (estado atual) e [AGENTS.md](AGENTS.md) (guia para agentes de IA).
+
 # MCP server for Revit - Python
 
 ## A pyRevit-oriented implementation of the Model Context Protocol (MCP) for Autodesk Revit
