@@ -27,6 +27,9 @@ _Última atualização: 2026-10-20_
 ## Próximos passos
 
 1. **Homologar no Windows** seguindo `docs/homologacao.md` (smoke + checklists).
+   **Aguardando o usuário avisar** quando for testar no PC; até lá não há como validar.
+   Depois da homologação, corrigir o bug do `format_response` (ver Pendências),
+   já decidido pelo usuário para depois dos testes.
    Em seguida: **validar o modo remoto no Windows** (checklist da spec 006) quando o
    usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
    terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
