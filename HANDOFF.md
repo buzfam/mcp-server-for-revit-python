@@ -8,8 +8,9 @@ _Última atualização: 2026-10-20_
 ## Estado atual
 
 - Fork sincronizado com o upstream em `6ca46b3` (merge do PR #69 upstream).
-- 22 tools: as 20 do upstream + `get_selected_elements` (001) e
-  `get_element_parameters` (002), mescladas no `master`. **Não validadas no Revit.**
+- 24 tools: as 20 do upstream + `get_selected_elements` (001),
+  `get_element_parameters` (002), `bulk_set_parameters` (003) e
+  `model_health_report` (004), no `master`. **Nenhuma validada no Revit.**
 - **Modo remoto direto (spec 006) implementado**: `main.py --http --host <IP>` +
   token remoto. Testado no macOS (unitários + smoke test pela rede com token
   simulado). **Não validado no Windows/Revit.** Guia: `docs/acesso-remoto.md`.
@@ -20,7 +21,7 @@ _Última atualização: 2026-10-20_
   funcionar com o IP direto.
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
-- Testes (macOS): `139 passed, 10 skipped`; manifest confere 22 tools.
+- Testes (macOS): `180 passed, 10 skipped`; manifest confere 24 tools.
 - **Kit de homologação**: `scripts/smoke.py` + `docs/homologacao.md`. Rodado no
   macOS contra um pyRevit Routes falso: 18 ok, 1 aviso (ver pendências), 0 falhas.
 
@@ -34,8 +35,8 @@ _Última atualização: 2026-10-20_
    usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
    terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
    firewall, cliente em outra máquina.
-2. **003 `bulk_set_parameters`** — spec 003; usa 002 para ler valores antes/depois.
-3. **004 `model_health_report`** — spec 004.
+2. **CI de IronPython** (compilar `revit_mcp/`, `startup.py`, `MCP.tab/` com IronPython 2.7 no Windows).
+3. Próximas tools do roadmap (`FORK.md`): 005 folhas, 006 templates em lote, 007 tags, 008 exportar tabelas.
 4. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
    usuário instalar no PC. Ponto de maior risco: `element_id_from_int`
    (overload Int64/Int32 do construtor de `ElementId` no IronPython).

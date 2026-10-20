@@ -8,6 +8,10 @@
   },
   "tools": [
     {
+      "name": "bulk_set_parameters",
+      "description": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
       "name": "clear_colors",
       "description": "Removes view color overrides from elements in a category."
     },
@@ -80,6 +84,10 @@
       "description": "Lists exportable model views grouped by view type."
     },
     {
+      "name": "model_health_report",
+      "description": "Reads model health indicators: grouped warnings, imported CAD, in-place families, views off sheets, unused templates, links, groups and file size."
+    },
+    {
       "name": "open_document",
       "description": "Opens a specified Revit document, optionally auditing or detaching it from central."
     },
@@ -104,6 +112,8 @@
     "Revit API - Views, sheets, ImageExportOptions and view graphic overrides",
     "Revit API - Family symbols, family instance placement and Transactions",
     "Revit API - UIDocument Selection and element/type parameter values",
+    "Revit API - Parameter Set/SetValueString in a single Transaction (bulk edits)",
+    "Revit API - Document warnings, ImportInstance, Family, View, Viewport, RevitLinkType and GroupType collectors (model health)",
     "Revit API - OpenAndActivateDocument, Document.Close, Save, SaveAs and SynchronizeWithCentral",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],

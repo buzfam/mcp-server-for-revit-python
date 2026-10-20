@@ -49,6 +49,14 @@ def register_routes():
 
         register_selection_routes(api)
 
+        from revit_mcp.parameters import register_parameter_routes
+
+        register_parameter_routes(api)
+
+        from revit_mcp.health import register_health_routes
+
+        register_health_routes(api)
+
         logger.info("All MCP routes registered successfully")
 
     except Exception as e:

@@ -7,6 +7,15 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Adicionado
+- Tool `bulk_set_parameters` (spec 003): altera parâmetros de até 500 elementos
+  numa transação só, tudo ou nada. `dry_run` (padrão) valida dentro de uma
+  transação desfeita e mostra antes/depois; a aplicação real abre um único
+  diálogo de aprovação no Revit e vira um único Ctrl+Z. Rota `POST /bulk_set_parameters/`.
+- Tool `model_health_report` (spec 004): avisos agrupados por tipo, CAD
+  importado, famílias in-place, vistas fora de folhas, templates sem uso,
+  links, grupos, opções de projeto, tamanho do arquivo e `flags`. Rota `POST /model_health/`.
+- `tests/unit/test_route_logic.py`: lógica das rotas 003/004 contra um Revit simulado.
+- Smoke test inclui `model_health_report` e `bulk_set_parameters` em dry run.
 - `scripts/smoke.py`: homologação automática que chama todas as tools de leitura
   contra um Revit real (local por stdio ou remoto pelo IP + token), confere a
   recusa sem token/token errado e gera `smoke-report.json`. Roteiro em

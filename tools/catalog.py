@@ -23,4 +23,6 @@ TOOL_DESCRIPTIONS = {
     "sync_with_central": "Synchronizes the active workshared model with central using requested relinquish options.",
     "get_selected_elements": "Lists the elements currently selected by the user, with category, family, type and level.",
     "get_element_parameters": "Reads instance and optionally type parameters of elements, with raw and display values and editability.",
+    "bulk_set_parameters": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
+    "model_health_report": "Reads model health indicators: grouped warnings, imported CAD, in-place families, views off sheets, unused templates, links, groups and file size.",
 }

@@ -37,6 +37,8 @@ async def build_manifest():
             "Revit API - Views, sheets, ImageExportOptions and view graphic overrides",
             "Revit API - Family symbols, family instance placement and Transactions",
             "Revit API - UIDocument Selection and element/type parameter values",
+            "Revit API - Parameter Set/SetValueString in a single Transaction (bulk edits)",
+            "Revit API - Document warnings, ImportInstance, Family, View, Viewport, RevitLinkType and GroupType collectors (model health)",
             "Revit API - OpenAndActivateDocument, Document.Close, Save, SaveAs and SynchronizeWithCentral",
             "Revit API - User-supplied IronPython can invoke additional APIs under user review",
         ],

@@ -9,8 +9,8 @@ do código. A implementação segue a skill `add-mcp-tool`.
 |---|---|---|---|
 | 001 | [get_selected_elements](001-get-selected-elements.md) | leitura | Implementada (não validada no Revit) |
 | 002 | [get_element_parameters](002-get-element-parameters.md) | leitura | Implementada (não validada no Revit) |
-| 003 | [bulk_set_parameters](003-bulk-set-parameters.md) | escrita | Proposta |
-| 004 | [model_health_report](004-model-health-report.md) | leitura | Proposta |
+| 003 | [bulk_set_parameters](003-bulk-set-parameters.md) | escrita | Implementada (não validada no Revit) |
+| 004 | [model_health_report](004-model-health-report.md) | leitura | Implementada (não validada no Revit) |
 | 005 | [Fábrica: hub + agentes](005-fleet-hub.md) | arquitetura | Proposta (adiada; primeiro a 006) |
 | 006 | [Acesso pela rede (direto)](006-network-access.md) | transporte | Implementada (não validada no Revit) |
 

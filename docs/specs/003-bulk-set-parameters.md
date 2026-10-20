@@ -1,6 +1,6 @@
 # 003 — bulk_set_parameters
 
-- **Status:** Proposta
+- **Status:** Implementada (não validada no Revit)
 - **Tipo:** escrita (diálogo: `"Set element parameters"`); `dry_run` é leitura
 - **Rota:** `POST /bulk_set_parameters/` em `revit_mcp/parameters.py` (módulo novo)
 - **Wrapper:** `tools/parameter_tools.py` (módulo novo)
@@ -54,12 +54,28 @@ Com erro de validação (nada é aplicado):
 ]}
 ```
 
+## Decisões de implementação (2026-10-20)
+- **`dry_run` valida dentro de uma transação que é desfeita** (`RollBack`): o
+  Revit confere de verdade cada valor (inclusive `SetValueString` com unidades)
+  e o `after` mostra o valor como ficaria. Nada persiste e não há diálogo.
+- A rota autentica primeiro sem diálogo; só depois de ler `dry_run=false` chama
+  `authorize_request(..., action="Set element parameters")` (diálogo com o lote).
+- Erros de formato (lista vazia, > 500, item sem `element_id`/`parameter`/`value`)
+  → HTTP 400. Erros por item (elemento/parâmetro inexistente, read-only, ambíguo,
+  `ElementId`, inteiro inválido, valor recusado pelo Revit) → HTTP 200 com
+  `{"status": "error", "errors": [{index, element_id, parameter, error}]}`,
+  para o LLM receber a lista estruturada.
+- `dry_run` responde `{"status": "dry_run", "message": ..., "results": [...]}`;
+  `format_response` mostra como resultado neutro (não como erro).
+- Commit que o Revit não confirma (`TransactionStatus` ≠ `Committed`) → erro.
+- Lógica testada com um Revit simulado em `tests/unit/test_route_logic.py`.
+
 ## Regras e casos de borda
 - **Tudo ou nada**: primeiro valida todas as alterações; se houver qualquer
   erro, não abre transação e devolve `errors`. Só então uma única
   `DB.Transaction(doc, "MCP: bulk set parameters")`.
-- Se `SetValueString`/`Set` falhar durante a transação → `t.RollBack()` e erro 500
-  com o índice que falhou.
+- Se `SetValueString`/`Set` recusar um valor durante a transação → `RollBack()` e
+  `status: error` com o índice que falhou (nada aplicado). Exceção inesperada → `RollBack()` e HTTP 500.
 - Conversão por `StorageType`:
   - `String` → `p.Set(str(value))`
   - `Integer` → `int`; Sim/Não aceita `true/false`, `"sim"/"não"`, `"yes"/"no"`, `1/0`

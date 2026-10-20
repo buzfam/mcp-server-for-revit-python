@@ -24,7 +24,7 @@ relatos, só **lê** o modelo. O diferencial deste fork é:
 
 | Área | Upstream | Fork |
 |---|---|---|
-| Tools | 20 | 22 (+ `get_selected_elements`, `get_element_parameters`) e roadmap abaixo |
+| Tools | 20 | 24 (+ `get_selected_elements`, `get_element_parameters`, `bulk_set_parameters`, `model_health_report`) e roadmap abaixo |
 | Guia para agentes | — | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/` |
 | Acompanhamento | — | `HANDOFF.md`, `CHANGELOG.md`, `docs/specs/` |
 | `.gitignore` | ignora `CLAUDE.md` | `CLAUDE.md` versionado |

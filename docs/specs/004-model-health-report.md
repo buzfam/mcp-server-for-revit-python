@@ -1,8 +1,8 @@
 # 004 — model_health_report
 
-- **Status:** Proposta
+- **Status:** Implementada (não validada no Revit)
 - **Tipo:** leitura (`authorize_request(request, action=None)`)
-- **Rota:** `GET /model_health/` em `revit_mcp/health.py` (módulo novo)
+- **Rota:** `POST /model_health/` em `revit_mcp/health.py` (POST + JSON, padrão do repositório)
 - **Wrapper:** `tools/health_tools.py` (módulo novo)
 
 ## Problema
@@ -40,6 +40,18 @@ seguir (selecionar, isolar, corrigir com outras tools).
   "flags": ["warnings_high", "imported_cad", "many_views_not_on_sheets"]
 }
 ```
+
+## Decisões de implementação (2026-10-20)
+- Cada seção (avisos, CAD, in-place, vistas, links, grupos, opções de projeto,
+  tamanho) roda isolada: se uma falhar, as outras saem e o erro aparece em
+  `section_errors`.
+- In-place contado por **família** (`Family.IsInPlace`), agrupado por `FamilyCategory`.
+- `views.placeable` = vistas que podem ir para folha (exclui navegadores, folhas,
+  relatórios, vistas internas e as que não `CanBePrinted`); a flag
+  `many_views_not_on_sheets` usa `not_on_sheets / placeable > 50%`.
+- Flags possíveis: `warnings_medium|high`, `imported_cad`, `in_place_families`,
+  `many_views_not_on_sheets`, `unused_view_templates`, `revit_links_not_loaded`.
+- `warning_flag` e `health_flags` testados em `tests/unit/test_route_logic.py`.
 
 ## Regras e casos de borda
 - Thresholds de `flag` (configuráveis como constantes no módulo):

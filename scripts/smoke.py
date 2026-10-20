@@ -8,7 +8,8 @@ Local (on the Revit PC itself, stdio like Claude Desktop):
 
 Before running: open a model in Revit, pair (MCP > Bridge > Connect) and
 select 1-3 elements so the selection/parameter tools have something to read.
-Only read-only tools are called; nothing in the model is changed.
+Only read-only tools are called, plus bulk_set_parameters in dry-run mode
+(validated inside a transaction that is rolled back); nothing is changed.
 Writes a JSON report (default smoke-report.json) and exits 1 on any FAIL.
 """
 import argparse
@@ -174,6 +175,8 @@ async def run(args, report):
         await call(session, report, "list_families", {"limit": 20}, timeout=args.timeout)
         await call(session, report, "list_category_parameters", {"category_name": "Walls"},
                    timeout=args.timeout)
+        await call(session, report, "model_health_report", {"sample_ids": 3},
+                   timeout=max(args.timeout, 120))
 
         status, text = await call(session, report, "get_current_view_elements",
                                   {"limit": 20}, timeout=args.timeout)
@@ -208,10 +211,18 @@ async def run(args, report):
                            "no elements returned for ids {}".format(ids))
             await call(session, report, "get_element_parameters", {}, timeout=args.timeout,
                        label="get_element_parameters (current selection)")
+            # Dry run only: Revit validates inside a transaction that is rolled back.
+            changes = [{"element_id": i, "parameter": "Comments", "value": "smoke test"} for i in ids]
+            status, text = await call(session, report, "bulk_set_parameters",
+                                      {"changes": changes, "dry_run": True},
+                                      timeout=args.timeout, label="bulk_set_parameters (dry run)")
+            if status == FAIL and "Parameter not found" in text:
+                report.checks[-1]["status"] = WARN
+                report.checks[-1]["detail"] = "selected element has no 'Comments' parameter"
         else:
             report.add("get_element_parameters", SKIP, "needs a selection")
 
-        skipped = sorted(expected - READ_ONLY)
+        skipped = sorted(expected - READ_ONLY - {"bulk_set_parameters"})
         report.add("write tools", SKIP, "not called by the smoke test: " + ", ".join(skipped))
 
 
