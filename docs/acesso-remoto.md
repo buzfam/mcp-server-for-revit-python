@@ -19,29 +19,53 @@ Seu agente (outra máquina) ──HTTP(S) + token remoto──▶ PC do Revit: m
 
 Spec: [`docs/specs/006-network-access.md`](specs/006-network-access.md).
 
-## No PC do Revit (Windows)
+## No PC do Revit (Windows) — pelo botão, sem terminal
 
-1. Instale a extensão e faça o pareamento: no Revit, **MCP > Bridge > Connect**.
-2. No clone do repositório, crie o token remoto (aparece **uma única vez**;
-   guarde num cofre de senhas):
-   ```powershell
-   uv run --frozen main.py --remote-token new
-   ```
-3. Libere a porta no firewall **só para a máquina do agente**
-   (PowerShell como administrador; troque o IP):
-   ```powershell
-   New-NetFirewallRule -DisplayName "Revit MCP" -Direction Inbound -Protocol TCP `
-     -LocalPort 8000 -RemoteAddress 192.168.0.50 -Action Allow -Profile Domain,Private
-   ```
-4. Suba o servidor escutando no IP do PC (ou `0.0.0.0` para todas as placas):
-   ```powershell
-   uv run --frozen main.py --http --host 192.168.0.20 --port 8000
-   ```
-   O terminal mostra os endereços aceitos. Se o agente for usar um nome
-   (ex.: `revit-pc01.empresa.local`), acrescente `--allowed-host revit-pc01.empresa.local`;
-   endereços fora da lista são recusados com erro 421.
-5. Para revogar o acesso: `uv run --frozen main.py --remote-token revoke`.
-   Para trocar o token: rode `--remote-token new` de novo (o antigo deixa de valer).
+Tudo fica em **MCP > Remote > Remoto** no ribbon do Revit:
+
+1. **MCP > Bridge > Connect** (pareamento, uma vez por usuário Windows).
+2. **Remoto > Iniciar servidor remoto**. Na primeira vez:
+   - cria o token remoto se ainda não existir;
+   - se o `uv` não estiver instalado, oferece instalar (baixa de astral.sh, só
+     para o seu usuário);
+   - o primeiro início baixa as dependências e pode levar alguns minutos;
+   - o Windows pode perguntar sobre o firewall: permita **só em redes
+     privadas/de domínio**.
+3. Quando o servidor sobe, aparece a janela com os **IPs do PC, a porta, o
+   token** e o **comando pronto para o Claude Code**, com botões
+   *Copiar comando do Claude Code* e *Copiar token*.
+
+Outras opções do menu **Remoto**:
+
+| Opção | O que faz |
+|---|---|
+| Ver token e comando de conexão | Mostra de novo o token, os IPs e o comando, com botões de copiar |
+| Gerar novo token | Troca o token; o antigo para de funcionar na hora (sem reiniciar o servidor) |
+| Revogar token | Apaga o token; nenhum agente remoto conecta até criar outro |
+| Parar servidor remoto | Encerra o servidor em segundo plano |
+| Ver log do servidor | Últimas linhas de `%LOCALAPPDATA%\RevitMCPPython\remote-server.log` |
+
+O servidor roda em segundo plano (sem janela), escuta em `0.0.0.0:8000` e
+**continua rodando se o Revit fechar**; use *Parar servidor remoto* para encerrar.
+
+### Restringir o firewall (recomendado)
+
+Para aceitar conexões só da máquina do agente, rode uma vez como administrador
+(troque o IP):
+```powershell
+New-NetFirewallRule -DisplayName "Revit MCP" -Direction Inbound -Protocol TCP `
+  -LocalPort 8000 -RemoteAddress 192.168.0.50 -Action Allow -Profile Domain,Private
+```
+
+### Alternativa pelo terminal
+
+```powershell
+uv run --frozen main.py --remote-token new          # cria/troca o token (mostra uma vez)
+uv run --frozen main.py --http --host 0.0.0.0 --port 8000
+uv run --frozen main.py --remote-token revoke       # revoga
+```
+Com um nome em vez de IP (ex.: `revit-pc01.empresa.local`), acrescente
+`--allowed-host revit-pc01.empresa.local`; nomes fora da lista recebem erro 421.
 
 ## No agente (outra máquina)
 
@@ -83,8 +107,9 @@ O cliente passa a usar `https://...` (no `mcp-remote`, sem `--allow-http`).
 
 | Sintoma | Causa |
 |---|---|
-| `401 MCP pairing required` | Token remoto ausente, errado ou revogado |
+| `401 MCP pairing required` | Token remoto ausente, errado ou revogado (confira em *Remoto > Ver token*) |
 | `421 Invalid Host header` | O agente usa um nome/IP fora da lista: acrescente `--allowed-host` |
 | Tool responde "Use Revit's MCP > Bridge > Connect" | Falta o pareamento no Revit daquele PC |
-| Conexão recusada / timeout | Firewall do Windows, IP errado ou `main.py` não está rodando |
+| Conexão recusada / timeout | Firewall do Windows, IP errado ou servidor parado (*Remoto > Iniciar*) |
+| Servidor não inicia | *Remoto > Ver log do servidor*; na 1ª vez precisa de internet para baixar dependências |
 | Escrita "trava" | O diálogo de aprovação está aberto no Revit esperando alguém no PC |

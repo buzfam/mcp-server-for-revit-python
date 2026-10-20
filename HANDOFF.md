@@ -13,16 +13,21 @@ _Última atualização: 2026-10-20_
 - **Modo remoto direto (spec 006) implementado**: `main.py --http --host <IP>` +
   token remoto. Testado no macOS (unitários + smoke test pela rede com token
   simulado). **Não validado no Windows/Revit.** Guia: `docs/acesso-remoto.md`.
+- Botão **MCP > Remote > Remoto** (sem terminal): token, comando de conexão,
+  iniciar/parar servidor, log. **Nunca rodou num Revit** (IronPython, .NET Process,
+  diálogos do pyRevit conferidos só no código-fonte do pyRevit).
 - Spec 005 (fábrica com hub) escrita e **adiada** a pedido do usuário: primeiro
   funcionar com o IP direto.
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
-- Testes (macOS): `120 passed, 10 skipped`; manifest confere 22 tools.
+- Testes (macOS): `129 passed, 10 skipped`; manifest confere 22 tools.
 
 ## Próximos passos
 
 1. **Validar o modo remoto no Windows** (checklist da spec 006) quando o
-   usuário instalar no PC: token DPAPI, firewall, cliente em outra máquina.
+   usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
+   terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
+   firewall, cliente em outra máquina.
 2. **003 `bulk_set_parameters`** — spec 003; usa 002 para ler valores antes/depois.
 3. **004 `model_health_report`** — spec 004.
 4. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
@@ -43,6 +48,8 @@ _Última atualização: 2026-10-20_
 | 2026-10-20 | Fábrica: estações de trabalho, aprovação de escrita no hub, diálogo no Revit mantido, hub numa VM | Decisão do usuário |
 | 2026-10-20 | Antes do hub: modo remoto direto pelo IP do PC (spec 006) | Usuário quer funcionar simples primeiro |
 | 2026-10-20 | Token remoto separado do pareamento; TLS opcional com aviso | Revogar acesso pela rede sem quebrar o local; facilitar o piloto em LAN |
+| 2026-10-20 | Gerenciar token e servidor remoto pelo ribbon (botão Remoto) | O usuário instala via pyRevit e não terá terminal no PC |
+| 2026-10-20 | Servidor remoto continua rodando se o Revit fechar | Simplicidade; parar é explícito pelo botão |
 
 ## Pendências e riscos
 

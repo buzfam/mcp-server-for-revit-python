@@ -4,6 +4,8 @@
 - **Tipo:** transporte (sem tools novas)
 - **Código:** `main.py` (CLI, Host allowlist, TLS), `tools/remote_access.py`
   (token remoto), `tools/http_security.py` (validador injetável)
+- **Ribbon:** `MCP.tab/Remote.panel/Remoto.pushbutton` + `revit_mcp/remote_server.py`
+  (iniciar/parar servidor) + `revit_mcp/remote_token.py` (token compartilhado IronPython/CPython)
 - **Guia de uso:** [`docs/acesso-remoto.md`](../acesso-remoto.md)
 
 ## Problema
@@ -26,6 +28,21 @@ fábrica com hub (spec 005).
 - Token remoto: 256 bits aleatórios, DPAPI *CurrentUser* em
   `%LOCALAPPDATA%\RevitMCPPython\remote.dpapi`; `--remote-token new` cria/troca
   (mostra uma vez), `--remote-token revoke` apaga.
+
+## Botão Remoto (sem terminal)
+- Menu (`CommandSwitchWindow`): ver token e comando, gerar novo, revogar,
+  iniciar/parar servidor, ver log. Opções mudam conforme o estado.
+- *Ver token*: IPs IPv4 do PC (sem loopback/169.254), porta, token e o comando
+  `claude mcp add ...` pronto; botões de copiar (`script.clipboard_copy`).
+- *Iniciar*: exige pareamento; cria o token se faltar; pede confirmação
+  (aviso de rede e firewall); procura o `uv` (PATH, `~\.local\bin`,
+  `~\.cargo\bin`, `%LOCALAPPDATA%\Programs\uv`) e, com consentimento,
+  instala pelo instalador oficial; roda `cmd /c "uv run --frozen main.py --http
+  --host 0.0.0.0 --port 8000" >> remote-server.log` sem janela, a partir da
+  pasta da extensão; PID em `%LOCALAPPDATA%\RevitMCPPython\remote-server.json`;
+  espera até 25 s por `Uvicorn running` no log.
+- *Parar*: `taskkill /PID <pid> /T /F` (mata cmd → uv → python).
+- Trocar o token vale na hora: o servidor lê o token a cada requisição.
 
 ## Fora do escopo (vai para a spec 005)
 Descoberta automática de PCs, vários Revits por PC num só endpoint, aprovação
@@ -50,3 +67,10 @@ executada (resposta de pareamento ausente, esperado sem Revit), 421 com Host for
 - [ ] `--remote-token revoke` → cliente remoto recebe 401
 - [ ] Regra de firewall com `-RemoteAddress` bloqueia uma terceira máquina
 - [ ] TLS com certificado da CA interna
+- [ ] Botão Remoto: menu aparece; sem pareamento, *Iniciar* pede o Connect
+- [ ] *Iniciar* sem `uv`: oferece instalar, instala e sobe o servidor
+- [ ] Primeiro início (baixa dependências) → mensagem "iniciando"; depois *Ver token* mostra RODANDO
+- [ ] *Copiar comando do Claude Code* → colar na outra máquina conecta
+- [ ] *Gerar novo token* com servidor rodando → token antigo recebe 401 sem reiniciar
+- [ ] *Parar servidor* encerra o processo (porta 8000 livre)
+- [ ] Texto com acentos aparece correto nos diálogos (IronPython)
