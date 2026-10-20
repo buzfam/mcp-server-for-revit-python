@@ -14,3 +14,4 @@ wheels/
 .mcp.json
 # Local test/audit artifacts
 .pytest_cache/
+smoke-report.json

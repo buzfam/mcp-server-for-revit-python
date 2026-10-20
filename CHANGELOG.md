@@ -7,6 +7,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Adicionado
+- `scripts/smoke.py`: homologação automática que chama todas as tools de leitura
+  contra um Revit real (local por stdio ou remoto pelo IP + token), confere a
+  recusa sem token/token errado e gera `smoke-report.json`. Roteiro em
+  `docs/homologacao.md`.
 - Modo remoto (spec 006, [guia](docs/acesso-remoto.md)): `main.py --http --host <IP>`
   permite que um cliente MCP em outra máquina controle o Revit do PC, com token
   remoto próprio (`--remote-token new|revoke`, DPAPI), lista de `Host` aceitos

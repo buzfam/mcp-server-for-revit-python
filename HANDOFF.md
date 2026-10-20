@@ -20,11 +20,14 @@ _Última atualização: 2026-10-20_
   funcionar com o IP direto.
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
-- Testes (macOS): `129 passed, 10 skipped`; manifest confere 22 tools.
+- Testes (macOS): `139 passed, 10 skipped`; manifest confere 22 tools.
+- **Kit de homologação**: `scripts/smoke.py` + `docs/homologacao.md`. Rodado no
+  macOS contra um pyRevit Routes falso: 18 ok, 1 aviso (ver pendências), 0 falhas.
 
 ## Próximos passos
 
-1. **Validar o modo remoto no Windows** (checklist da spec 006) quando o
+1. **Homologar no Windows** seguindo `docs/homologacao.md` (smoke + checklists).
+   Em seguida: **validar o modo remoto no Windows** (checklist da spec 006) quando o
    usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
    terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
    firewall, cliente em outra máquina.
@@ -58,6 +61,10 @@ _Última atualização: 2026-10-20_
 - O remote `origin` aponta para o fork pessoal `karlipegomes`; o `master` local
   rastreia `buzfam/master`, destino dos pushes.
 - Fábrica: confirmar no Windows como o pyRevit numera as portas de vários Revits no mesmo PC.
+- **Bug herdado do upstream** em `tools/utils.py::format_response`: se a resposta
+  tem `message`, devolve só a mensagem e descarta os dados. Ex.:
+  `get_current_view_elements` truncado chega ao LLM só com "Results truncated…".
+  O smoke marca isso como `warn`. Correção ainda não feita.
 
 ## Ambiente
 

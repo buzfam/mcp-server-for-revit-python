@@ -44,6 +44,7 @@ uv run --frozen --extra test python -m pytest tests/unit -q      # testes unitá
 uv run --frozen python scripts/export_mcp_manifest.py            # regenerar o manifest depois de mudar tools
 uv run --frozen python scripts/export_mcp_manifest.py --check    # o que o CI roda
 uv run --frozen --extra test python -m pytest tests/integration -m integration  # só no Windows com Revit aberto e pareado
+uv run --frozen python scripts/smoke.py --url http://<IP>:8000/mcp --token <TOKEN>  # homologação contra um Revit real (ou --local)
 ```
 
 Baseline em 2026-10-20 (macOS): `97 passed, 9 skipped`; manifest com 20 tools.
@@ -96,5 +97,6 @@ Baseline em 2026-10-20 (macOS): `97 passed, 9 skipped`; manifest com 20 tools.
 - Estado atual, decisões e próximos passos: `HANDOFF.md`
 - Diferenças em relação ao upstream e roadmap: `FORK.md`
 - Specs das tools planejadas: `docs/specs/`
+- Roteiro de homologação no Windows: `docs/homologacao.md` (+ `scripts/smoke.py`)
 - Histórico de mudanças do fork: `CHANGELOG.md`
 - Segurança e privacidade herdadas do upstream: `SECURITY.md`, `PRIVACY.md`
