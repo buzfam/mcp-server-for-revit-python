@@ -32,6 +32,10 @@
       "description": "Reads the active view's properties and settings."
     },
     {
+      "name": "get_element_parameters",
+      "description": "Reads instance and optionally type parameters of elements, with raw and display values and editability."
+    },
+    {
       "name": "get_revit_model_info",
       "description": "Reads project metadata, element counts, rooms, views, sheets, warnings and linked-model information."
     },
@@ -42,6 +46,10 @@
     {
       "name": "get_revit_view",
       "description": "Exports a named model view as a PNG image."
+    },
+    {
+      "name": "get_selected_elements",
+      "description": "Lists the elements currently selected by the user, with category, family, type and level."
     },
     {
       "name": "launch_revit",
@@ -95,6 +103,7 @@
     "Revit API - Document and project information, levels, rooms, elements and parameters",
     "Revit API - Views, sheets, ImageExportOptions and view graphic overrides",
     "Revit API - Family symbols, family instance placement and Transactions",
+    "Revit API - UIDocument Selection and element/type parameter values",
     "Revit API - OpenAndActivateDocument, Document.Close, Save, SaveAs and SynchronizeWithCentral",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],

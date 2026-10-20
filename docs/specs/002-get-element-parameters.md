@@ -1,6 +1,6 @@
 # 002 — get_element_parameters
 
-- **Status:** Proposta
+- **Status:** Implementada (não validada no Revit)
 - **Tipo:** leitura (`authorize_request(request, action=None)`)
 - **Rota:** `POST /element_parameters/` em `revit_mcp/selection.py`
 - **Wrapper:** `tools/selection_tools.py`
@@ -27,7 +27,7 @@ precisa ver nomes exatos, valores, unidades e se o parâmetro é editável.
   "status": "success",
   "elements": [
     {
-      "id": 123456, "category": "Doors", "type_id": 9876,
+      "element_id": 123456, "name": "80x210", "category": "Doors", "type_id": 9876,
       "instance": [
         {"name": "Mark", "value": "P01", "display": "P01", "storage": "String",
          "read_only": false, "shared": false, "builtin": "ALL_MODEL_MARK"}
@@ -55,14 +55,16 @@ precisa ver nomes exatos, valores, unidades e se o parâmetro é editável.
 - Parâmetros com o mesmo nome (ex.: compartilhado + projeto) aparecem os dois.
 
 ## Revit API
+- IDs recebidos como `int` viram `ElementId` via `element_id_from_int`
+  (`revit_mcp/utils.py`): construtor Int64 no Revit 2024+, Int32 nos anteriores.
 - `el.Parameters` (instância), `doc.GetElement(el.GetTypeId()).Parameters` (tipo)
 - `p.Definition.Name`, `p.StorageType`, `p.IsReadOnly`, `p.IsShared`,
   `p.AsString()`, `p.AsInteger()`, `p.AsDouble()`, `p.AsElementId()`, `p.AsValueString()`
 - `p.Definition.BuiltInParameter` (via `InternalDefinition`)
 
 ## Testes
-- Unitário: payload enviado com e sem `element_ids`; `None` não é enviado como `null`
-  (ver `tests/unit/test_null_defaults.py`).
+- Unitário (`tests/unit/test_selection_tools.py`): payload com e sem `element_ids`;
+  argumentos `None` não são enviados; mais de 50 IDs é rejeitado no wrapper.
 - Integração: ler parâmetros de um elemento do `tests/test.rvt`.
 
 ## Validação manual no Revit

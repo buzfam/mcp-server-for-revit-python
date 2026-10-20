@@ -47,6 +47,19 @@ def element_id_value(element_id):
         return int(element_id.IntegerValue)
 
 
+def element_id_from_int(value):
+    """Build an ElementId from an integer.
+
+    Revit 2024+ takes an Int64; Revit 2026 removed the Int32 constructor.
+    Older versions only have the Int32 constructor.
+    """
+    try:
+        from System import Int64
+        return DB.ElementId(Int64(value))
+    except Exception:
+        return DB.ElementId(int(value))
+
+
 def get_element_name(element):
     """
     Get the name of a Revit element.

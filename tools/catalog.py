@@ -21,4 +21,6 @@ TOOL_DESCRIPTIONS = {
     "close_document": "Closes the active Revit document, optionally saving changes.",
     "save_document": "Saves the active document in place or to a specified new file.",
     "sync_with_central": "Synchronizes the active workshared model with central using requested relinquish options.",
+    "get_selected_elements": "Lists the elements currently selected by the user, with category, family, type and level.",
+    "get_element_parameters": "Reads instance and optionally type parameters of elements, with raw and display values and editability.",
 }

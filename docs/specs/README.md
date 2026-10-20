@@ -7,8 +7,8 @@ do código. A implementação segue a skill `add-mcp-tool`.
 
 | # | Spec | Tipo | Status |
 |---|---|---|---|
-| 001 | [get_selected_elements](001-get-selected-elements.md) | leitura | Proposta |
-| 002 | [get_element_parameters](002-get-element-parameters.md) | leitura | Proposta |
+| 001 | [get_selected_elements](001-get-selected-elements.md) | leitura | Implementada (não validada no Revit) |
+| 002 | [get_element_parameters](002-get-element-parameters.md) | leitura | Implementada (não validada no Revit) |
 | 003 | [bulk_set_parameters](003-bulk-set-parameters.md) | escrita | Proposta |
 | 004 | [model_health_report](004-model-health-report.md) | leitura | Proposta |
 

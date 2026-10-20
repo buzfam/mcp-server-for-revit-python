@@ -8,7 +8,7 @@ READ_ONLY = {
     "get_revit_status", "get_revit_model_info", "list_levels", "get_revit_view",
     "list_revit_views", "get_current_view_info", "get_current_view_elements",
     "list_families", "list_family_categories", "list_category_parameters",
-    "list_revit_installations",
+    "list_revit_installations", "get_selected_elements", "get_element_parameters",
 }
 
 
