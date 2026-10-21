@@ -38,6 +38,7 @@ ROUTE_MODULES = [
     ("revit_mcp.renumber", "register_renumber_routes"),
     ("revit_mcp.pdf_export", "register_pdf_export_routes"),
     ("revit_mcp.phases", "register_phase_routes"),
+    ("revit_mcp.finish_elements", "register_finish_element_routes"),
 ]
 
 

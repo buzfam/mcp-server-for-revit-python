@@ -43,4 +43,6 @@ TOOL_DESCRIPTIONS = {
     "export_sheets_pdf": "Exports sheets (by number, sheet set or all) to PDF with Revit's native exporter, named by the office rule (project, sheet, revision, date), with an emissao.json issue manifest; replaces existing files only with a backup; dry run by default.",
     "phases_report": "Reads project phases, phase filters, element counts per created/demolished phase and views per phase.",
     "set_element_phases": "Sets created/demolished phases of many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
+    "create_floors_from_rooms": "Creates one finish floor per room on the room boundary, in the room's phase, in one all-or-nothing transaction after review in Revit; skips rooms that already have a floor; dry_run (default) only previews areas.",
+    "create_ceilings_from_rooms": "Creates one ceiling per room on the room boundary at a given or room-top height, in the room's phase, in one all-or-nothing transaction after review in Revit; skips rooms that already have a ceiling; dry_run (default) only previews areas.",
 }

@@ -40,6 +40,14 @@
       "description": "Applies view color overrides to elements grouped by a parameter value."
     },
     {
+      "name": "create_ceilings_from_rooms",
+      "description": "Creates one ceiling per room on the room boundary at a given or room-top height, in the room's phase, in one all-or-nothing transaction after review in Revit; skips rooms that already have a ceiling; dry_run (default) only previews areas."
+    },
+    {
+      "name": "create_floors_from_rooms",
+      "description": "Creates one finish floor per room on the room boundary, in the room's phase, in one all-or-nothing transaction after review in Revit; skips rooms that already have a floor; dry_run (default) only previews areas."
+    },
+    {
       "name": "create_rooms",
       "description": "Creates rooms at points or inside new room separation polygons (meters), with name, number and tags, and reports areas in m²; all or nothing after review in Revit; dry_run (default) only validates and previews."
     },
@@ -200,6 +208,7 @@
     "Revit API - View-scoped FilteredElementCollector, ViewSheet.IsPlaceholder, FamilyInstance.get_ToRoom/get_FromRoom/get_Room(phase), Element.CreatedPhaseId/GroupId, ROOM_PHASE/VIEW_PHASE and Parameter.Set on ALL_MODEL_MARK/ROOM_NUMBER/SHEET_NUMBER (renumbering)",
     "Revit API - Document.Export(String, IList<ElementId>, PDFExportOptions), PDFExportOptions, ViewSheetSet, ViewSheet.IsPlaceholder/CanBePrinted, sheet revision parameters and System.IO drive/attribute checks (PDF issue)",
     "Revit API - Document.Phases, PhaseFilter.GetPhaseStatusPresentation, Element.HasPhases/ArePhasesModifiable/IsPhaseCreatedValid/IsPhaseDemolishedValid/CreatedPhaseId/DemolishedPhaseId and ElementMulticategoryFilter (phases)",
+    "Revit API - Floor.Create / Ceiling.Create (2022+) with IList<CurveLoop> from Room.GetBoundarySegments, BoundaryValidation, CreatedPhaseId/IsPhaseCreatedValid and ROOM_PHASE/ROOM_UPPER_LEVEL/ROOM_LOWER_OFFSET (floors and ceilings from rooms)",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],
   "ai_llm_providers": []

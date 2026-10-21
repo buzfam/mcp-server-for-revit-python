@@ -25,6 +25,7 @@ do código. A implementação segue a skill `add-mcp-tool`.
 | 016 | [phases_report, set_element_phases](016-phases.md) | leitura + escrita | Implementada (não validada no Revit) |
 | 017 | [export_sheets_pdf](017-export-sheets-pdf.md) | arquivo | Implementada (não validada no Revit) |
 | 018 | [renumber_elements](018-renumber-elements.md) | escrita | Implementada (não validada no Revit) |
+| 020 | [create_floors_from_rooms, create_ceilings_from_rooms](020-floors-ceilings-from-rooms.md) | escrita | Implementada (não validada no Revit) |
 
 Status: **Proposta** → **Em desenvolvimento** → **Implementada (não validada no Revit)** → **Validada no Revit <ano>**.
 

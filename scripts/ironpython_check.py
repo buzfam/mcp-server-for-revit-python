@@ -508,6 +508,30 @@ def quantity_review_helpers():
     assert q.in_box((1.0, 1.0), (0.0, 0.0, 2.0, 2.0)) and q.room_point_z(None, 3.0) == 4.0
 
 
+def finish_element_helpers():
+    from revit_mcp import finish_elements as fe
+    assert fe.validate_request({u"level": u"Térreo", u"offset_m": long(0)}, "floor") is None
+    assert fe.validate_request({u"room_ids": [long(5)], u"height_m": 2.6}, "ceiling") is None
+    assert "not both" in fe.validate_request({u"room_ids": [1], u"room_numbers": [u"1"]}, "floor")
+    assert "offset_m is for floors" in fe.validate_request({u"level": u"T", u"offset_m": 0}, "ceiling")
+    assert fe.ceiling_height(None, True, 0.0, 2.8) == (2.8, "room_top", None)
+    assert u"another level" in fe.ceiling_height(None, False, 0.0, 2.8)[2]
+    assert fe.exists_in_phase(0, None, 1) and not fe.exists_in_phase(0, 1, 1)
+    assert not fe.exists_in_phase(2, None, 1) and fe.exists_in_phase(None, None, None)
+    assert fe.preview_rooms([{"number": None, "room_id": long(7)}]) == [u"id 7"]
+    assert fe._key(u"  Térreo ") == u"térreo" and fe.room_status(True, 0) == "not_enclosed"
+    assert u"expected_count" in fe.validate_request({u"level": u"T", u"expected_count": -1}, "floor")
+    assert fe.covering_hosts([{"area_m2": 10.0}, {"area_m2": 200.0}], 12.0) == [{"area_m2": 10.0}]
+    seg = lambda a, b: {"start": a, "end": b, "length": ((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) ** 0.5, "line": True}
+    t = 0.002
+    loop = [seg((0, 0, 0), (1, 0, 0)), seg((1, 0, 0), (1 + t, 0, 0)), seg((1 + t, 0, 0), (1 + t, 1, 0)),
+            seg((1 + t, 1, 0), (0, 1, 0)), seg((0, 1, 0), (0, 0, 0))]
+    cleaned, repaired, error = fe.clean_loop(loop)
+    assert error is None and len(cleaned) == 4 and repaired == 2 and cleaned[1]["rebuilt"], error
+    assert u"open" in fe.clean_loop([seg((0, 0, 0), (1, 0, 0)), seg((1.5, 0, 0), (0, 0, 0))])[2]
+    assert u"skipped" in fe.summary_message("dry_run", 2, 1, "floors")
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -534,6 +558,7 @@ check("audit review helpers", audit_review_helpers)
 check("sheet check review helpers", sheet_check_review_helpers)
 check("material check review helpers", material_check_review_helpers)
 check("quantity review helpers", quantity_review_helpers)
+check("finish element helpers", finish_element_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))
