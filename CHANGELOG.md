@@ -37,6 +37,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **Histórico de aprovações**: cada pedido de alteração revisado (permitido,
+  recusado ou liberado pela aprovação da sessão) fica na memória do Revit até
+  fechar e no `revit-mcp.log`. Novo botão **MCP > Bridge > Histórico**.
 - **5 tools de conferência, só leitura (38 no total)**, a partir da especificação
   do escritório (Carol Vale Arquitetura) e das sugestões do hermes-vps:
   - `audit_template` (spec 012): inventário dos 19 itens do template (§11.2),

@@ -178,6 +178,10 @@ def approval_helpers():
     assert approval.is_auto_approved()
     approval.set_auto_approved(False)
     assert not approval.is_auto_approved()
+    # History lives in a .NET List[String] in the AppDomain under ipy.
+    approval.record(u"Create walls", approval.outcome_text(approval.ALLOW),
+                    approval.request_summary({u"walls": [1, 2], u"nome": u"Cozinha"}))
+    assert u"permitido  Create walls  nome=Cozinha, walls=2 itens" in approval.history()[0]
 
 
 def self_update_helpers():

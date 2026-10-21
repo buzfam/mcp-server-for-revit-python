@@ -67,6 +67,13 @@ def preview_text(data, indent=0):
     return _quote(u"{}".format(data))
 
 
+def _summary(data):
+    try:
+        return approval.request_summary(json.loads(data) if isinstance(data, str) else data)
+    except (ValueError, TypeError):
+        return u""
+
+
 def authorize_request(request, action=None):
     """Return a denial response, or None when the request may proceed."""
     body_token = _pop_body_token(request)
@@ -80,6 +87,7 @@ def authorize_request(request, action=None):
     if action:
         if approval.is_auto_approved():
             # The user chose "allow everything until Revit closes" in this dialog.
+            approval.record(action, approval.AUTO, _summary(request.data))
             return None
         from pyrevit import forms
         try:
@@ -93,6 +101,7 @@ def authorize_request(request, action=None):
         choice = forms.alert(warning, sub_msg=preview, title="Revit MCP request review",
                              options=approval.OPTIONS, warn_icon=True)
         allowed, whole_session = approval.decision(choice)
+        approval.record(action, approval.outcome_text(choice), approval.request_summary(data))
         if whole_session:
             approval.set_auto_approved(True)
         if not allowed:

@@ -171,6 +171,36 @@ def test_allow_for_session_skips_later_dialogs(route_security, fake_pairing, mon
     assert security.authorize_request(wrong, "Execute Python code").status == 401
 
 
+def test_history_records_each_reviewed_request(route_security, fake_pairing, monkeypatch):
+    security, _, alert = route_security
+    from revit_mcp import approval
+    monkeypatch.setattr(approval, "_local_history", [])
+    store = {}
+    monkeypatch.setattr(approval, "is_auto_approved", lambda: store.get("on", False))
+    monkeypatch.setattr(approval, "set_auto_approved", lambda on: store.__setitem__("on", on))
+    request = lambda data: SimpleNamespace(data=pairing.authorization_body(data), headers={})
+    alert.return_value = approval.DECLINE
+    security.authorize_request(request({"changes": [1, 2, 3], "dry_run": False}), "Set element parameters")
+    alert.return_value = approval.ALLOW_SESSION
+    security.authorize_request(request({"code": "x" * 100}), "Execute Python code")
+    security.authorize_request(request({"walls": [1]}), "Create walls")
+    security.authorize_request(request({}))  # read-only requests are not recorded
+    newest, middle, oldest = approval.history()
+    assert u"recusado  Set element parameters  changes=3 itens, dry_run=False" in oldest
+    assert u"permitido + sess\u00e3o inteira  Execute Python code  code=xxx" in middle
+    assert middle.endswith(u"...")
+    assert u"autom\u00e1tico (sess\u00e3o)  Create walls  walls=1 itens" in newest
+    assert fake_pairing not in u"".join(approval.history())
+
+
+def test_request_summary_is_short():
+    from revit_mcp import approval
+    data = dict((u"k{}".format(i), i) for i in range(6))
+    assert approval.request_summary(data) == u"k0=0, k1=1, k2=2, k3=3, +2"
+    assert approval.request_summary([1]) == u""
+    assert approval.request_summary({u"t": u"a\nb"}) == u"t=a b"
+
+
 def test_approval_decision():
     from revit_mcp import approval
     assert approval.decision(approval.ALLOW) == (True, False)
