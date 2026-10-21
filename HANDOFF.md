@@ -54,19 +54,50 @@ _Última atualização: 2026-10-20_
 
 ## Próximos passos
 
-1. **Homologar no Windows** seguindo `docs/homologacao.md` (smoke + checklists).
-   **Aguardando o usuário avisar** quando for testar no PC; até lá não há como validar.
-   Em seguida: **validar o modo remoto no Windows** (checklist da spec 006) quando o
-   usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
-   terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
-   firewall, cliente em outra máquina.
-2. **Validar no Revit as tools 007–011** (checklists nas specs). Sugestão: num
-   projeto com famílias de porta/janela e carimbo carregados, refazer a planta
-   da homologação com `create_walls` + `create_rooms` + `place_hosted_families`,
-   criar folhas, colocar a vista, etiquetar e exportar os ambientes.
-3. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
-   usuário instalar no PC. Ponto de maior risco: `element_id_from_int`
-   (overload Int64/Int32 do construtor de `ElementId` no IronPython).
+1. **Próximo teste no PC (roteiro combinado em 2026-10-21; o usuário avisa quando for testar).**
+   Antes: **MCP > Update > Atualizar**. Abrir um projeto com famílias de porta e
+   janela e um carimbo carregados (o modelo vazio da homologação não tinha nenhum).
+   Rodar o smoke primeiro (`scripts/smoke.py`). Depois, em ordem:
+   - [ ] **Token**: *Remoto > Gerar novo token* (o atual vazou no chat); o token
+         antigo deve receber 401 sem reiniciar o servidor.
+   - [ ] **Sem janela de erro do pyRevit**: mandar código com erro proposital pelo
+         `execute_revit_code`; o agente recebe o erro e nenhuma janela abre.
+   - [ ] **Botão Bridge > Log** mostra esse erro no `revit-mcp.log`.
+   - [ ] **"Permitir tudo até fechar o Revit"**: depois de escolher, escritas
+         seguintes não pedem diálogo; *Connected > Voltar a pedir aprovação* religa.
+   - [ ] **`format_response`**: `get_current_view_elements` com `limit` pequeno
+         devolve os elementos junto com o aviso de corte (o smoke deixa de dar aviso).
+   - [ ] **Modelagem (011)**: refazer a planta da homologação (9,30 × 6,25 m,
+         8 ambientes) com `create_walls` → `create_rooms` → `place_hosted_families`
+         (portas e janelas). Conferir dry run sem alterar o modelo, um diálogo só,
+         um Ctrl+Z, áreas em m² e que avisos do Revit não abrem janela.
+   - [ ] **Folhas (007)**: `create_sheets` com o carimbo padrão e um escolhido;
+         `place_views_on_sheets` com a planta e uma tabela.
+   - [ ] **Templates (008)**: `apply_view_template` por tipo de vista.
+   - [ ] **Tags (009)**: `tag_elements` em ambientes, portas e janelas; rodar de
+         novo e conferir que pula as já etiquetadas.
+   - [ ] **Exportação (010)**: `export_rooms` (bater áreas com o Revit) e
+         `export_schedule` em CSV.
+   - [ ] Itens ainda abertos das specs 001–004 e 006 (checklists em cada spec):
+         seleção grande truncada, parâmetro compartilhado, Sim/Não, `"110 cm"`,
+         *Parar servidor* liberando a porta 8000.
+   Riscos a observar: `IndependentTag.Create` e a detecção de tags existentes; o
+   `FailuresPreprocessor` suprimir os diálogos de aviso no Revit 2024;
+   `NewRoomBoundaryLines` numa vista que não é a ativa; face da parede com
+   `location_line`.
+2. Corrigir o que o teste acima encontrar e marcar as specs como validadas.
+3. Próximas ideias (não decididas): ver a lista em "Ideias" abaixo.
+
+## Ideias (não decididas, 2026-10-21)
+
+- `create_floors` / `create_ceilings` a partir do contorno dos ambientes.
+- `renumber_elements` (portas por ambiente, folhas em sequência) com dry run.
+- `duplicate_views` em lote (dependentes, com detalhamento) e `create_levels` / `create_grids`.
+- `import_parameters_from_csv`: planilha → `bulk_set_parameters` com mapeamento de colunas.
+- `purge_unused` com prévia (famílias, tipos, materiais) e relatório no `model_health_report`.
+- `export_sheets_pdf` (PDF/DWG em lote) — escreve arquivos, precisa de aprovação e pasta permitida.
+- Botão no ribbon com o histórico de aprovações da sessão (auditoria local).
+- Fábrica (spec 005): hub central para vários PCs.
 
 ## Decisões tomadas
 
