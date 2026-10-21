@@ -99,6 +99,29 @@ _Última atualização: 2026-10-20_
 - Botão no ribbon com o histórico de aprovações da sessão (auditoria local).
 - Fábrica (spec 005): hub central para vários PCs.
 
+### Sugestões do hermes-vps (2026-10-21, a partir da Espec. da Carol Vale Arquitetura)
+
+Documento completo: `buzfam/cvarq-skills` → `docs/propostas/2026-10-21-mcps-plugins-revit.md` (commit 99843fe).
+
+- **P1 leitura:** `audit_template` (19 itens da §11.2, marca o que está sem uso,
+  inclui o purge com prévia); `check_sheets` (checklist JSON por tipo de
+  prancha antes da emissão); `check_render_materials` (regras de material da
+  §7.3 antes do Lumion); `room_finishes` + `quantities_by_rule` (quantitativos
+  com a regra de medição junto de cada número).
+- **P1 escrita/arquivo:** `phases_report` + `set_element_phases` (reforma);
+  `export_sheets_pdf` com nome pela regra do escritório e manifesto JSON da
+  emissão; botões sem IA no ribbon (Checar pranchas, Checar materiais, Emitir
+  PDF, Novo projeto) reaproveitando o código das rotas.
+- **P2:** `link_survey_dxf` + `walls_from_dxf` (paredes existentes a partir da
+  layer do levantamento); `get/set_project_location` + `setup_sun_study`
+  ("configurado, não validado"); `revisions_report` + `add_revision_to_sheets`;
+  `quantities_snapshot` + `quantities_diff`.
+- Endossa da nossa lista: importar CSV, renumerar, purge (dentro do audit),
+  pisos/forros, histórico de aprovações. Adiaria: duplicar vistas, níveis/eixos, fábrica.
+- Antes de reescrever, ler servidores MIT/Apache que já cobrem partes:
+  HorizunGroup/horizun-revit-mcp, LuDattilo/revit-mcp-server,
+  Demolinator/revit-mcp-server. Conferir a API de exportação PDF do Revit 2024.
+
 ## Decisões tomadas
 
 | Data | Decisão | Motivo |
