@@ -184,8 +184,7 @@ async def run(args, report):
                                   {"limit": 20}, timeout=args.timeout)
         if status == PASS and parse_json(text) is None:
             report.add("get_current_view_elements data", WARN,
-                       "response had only a message (truncated); element data was dropped "
-                       "by format_response")
+                       "response is not JSON; element data may have been dropped")
 
         status, text = await call(session, report, "list_revit_views", timeout=args.timeout)
         views = (parse_json(text) or {}).get("views_by_type", {})

@@ -93,6 +93,10 @@ def format_response(response):
             if "output" in response:  # Code execution responses
                 return response["output"]
             elif "message" in response:
+                # A message next to data (e.g. "Results truncated" with the
+                # elements) must not drop the data: return everything as JSON.
+                if set(response) - {"status", "message"}:
+                    return json.dumps(response, indent=2, default=str)
                 return response["message"]
             elif "result" in response:
                 return str(response["result"])

@@ -14,6 +14,11 @@ class TestSuccessResponses:
         result = format_response({"status": "success", "message": "Done"})
         assert result == "Done"
 
+    def test_success_message_keeps_data(self):
+        resp = {"status": "success", "message": "Results truncated", "elements": [1], "truncated": True}
+        result = format_response(resp)
+        assert json.loads(result) == resp
+
     def test_success_with_result(self):
         result = format_response({"status": "success", "result": 42})
         assert result == "42"
