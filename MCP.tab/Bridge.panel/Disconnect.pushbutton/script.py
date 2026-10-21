@@ -10,6 +10,7 @@ from revit_mcp.pairing import disable_pairing, PairingError
 
 try:
     disable_pairing()
-    forms.alert("Disconnected. Subsequent MCP requests are denied. An operation already running may still finish.", title="Revit MCP")
+    forms.alert(u"Desconectado. Novos pedidos do MCP serão recusados.",
+                sub_msg=u"Uma operação que já estava rodando ainda pode terminar.", title="Revit MCP")
 except (PairingError, OSError) as error:
-    forms.alert(str(error), title="Revit MCP disconnect failed")
+    forms.alert(str(error), title="Revit MCP: falha ao desconectar")

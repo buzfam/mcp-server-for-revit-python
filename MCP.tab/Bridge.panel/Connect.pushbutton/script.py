@@ -9,21 +9,24 @@ if extension_root not in sys.path:
     sys.path.insert(0, extension_root)
 from revit_mcp.pairing import enable_pairing, PairingError
 
-notice = (
-    "Allow this Windows user's MCP clients to read Revit model data and request changes?\n\n"
-    "Pairing also permits discovery and launch of installed Revit versions.\n\n"
-    "Responses may include project/client names, model paths, parameter values, rooms, "
-    "linked-model details and view images. Your chosen AI client may send responses to its provider. "
-    "Check that client's privacy settings and use only models you may share.\n\n"
-    "Model changes and Python execution require a separate review in Revit. Python is not sandboxed "
-    "and can access your files and network. Other processes running as you can access this pairing.\n\n"
-    "Pairing persists until you click Disconnect. Connect again rotates the secret. "
-    "Privacy details are available from the Privacy button."
+# Short question in the main text; the details go in sub_msg so the dialog
+# keeps a normal size instead of stretching around one long paragraph.
+question = u"Permitir que clientes MCP deste usuário do Windows acessem este Revit?"
+details = (
+    u"\u2022 Eles leem dados do modelo: nomes do projeto e do cliente, caminhos, "
+    u"parâmetros, ambientes, vínculos e imagens de vistas.\n"
+    u"\u2022 O cliente de IA pode enviar essas respostas ao provedor dele. Use só "
+    u"modelos que você pode compartilhar.\n"
+    u"\u2022 Alterar o modelo ou executar Python sempre pede uma nova confirmação "
+    u"aqui no Revit. O Python não roda isolado.\n"
+    u"\u2022 Outros programas rodando com o seu usuário também usam este pareamento.\n"
+    u"\u2022 Vale até você clicar em Disconnect. Clicar em Connect de novo troca o segredo.\n\n"
+    u"Mais detalhes no botão Privacy."
 )
-if forms.alert(notice, title="Connect Revit MCP", ok=False, yes=True, no=True, warn_icon=True):
+if forms.alert(question, sub_msg=details, title="Conectar Revit MCP", ok=False, yes=True, no=True):
     try:
         enable_pairing()
-        forms.alert("Paired. Enable the pyRevit Routes server if it is not running, then connect your local MCP client.",
+        forms.alert(u"Pareado. Se o pyRevit Routes não estiver ligado, ligue em pyRevit > Settings > Routes.",
                     title="Revit MCP")
     except (PairingError, OSError) as error:
-        forms.alert(str(error), title="Revit MCP pairing failed")
+        forms.alert(str(error), title="Revit MCP: falha no pareamento")

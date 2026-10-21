@@ -16,6 +16,12 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   com o token guardado no request para rotas que autorizam duas vezes
   (`bulk_set_parameters`).
 
+### Alterado
+- Botões **Connect**, **Disconnect** e **Privacy** ganharam ícones e dicas em
+  português (antes apareciam como um bloco cinza sem identificação). O aviso do
+  Connect ficou em português, com a pergunta curta e os detalhes em tópicos,
+  sem o ícone de alerta grande.
+
 ### Adicionado
 - CI `IronPython 2.7 compatibility` (`.github/workflows/ironpython.yml` +
   `scripts/ironpython_check.py`): compila todo o código que roda no Revit com
