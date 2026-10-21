@@ -8,6 +8,11 @@ _Última atualização: 2026-10-20_
 ## Estado atual
 
 - Fork sincronizado com o upstream em `6ca46b3` (merge do PR #69 upstream).
+- **Homologação iniciada (2026-10-20)** num PC com Revit 2024 + pyRevit 7.0.0:
+  modo remoto validado pela rede (401 sem token/token errado, `initialize`,
+  24 tools). Toda rota respondia 401 mesmo pareada: bug do pyRevit Routes, que
+  não repassa cabeçalhos (pyRevit #3765). Corrigido mandando o segredo no corpo
+  JSON (`revit_mcp_auth`); **falta revalidar no PC** depois de atualizar a extensão.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
   `model_health_report` (004), no `master`. **Nenhuma validada no Revit.**
@@ -21,7 +26,7 @@ _Última atualização: 2026-10-20_
   funcionar com o IP direto.
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
-- Testes (macOS): `180 passed, 10 skipped`; manifest confere 24 tools.
+- Testes (macOS): `185 passed, 10 skipped`; manifest confere 24 tools.
 - CI no Windows (GitHub Actions, 2026-10-20): `190 passed` em Python 3.11 e 3.13
   (inclui os testes de DPAPI) e **IronPython 2.7.12 ok**: 21 arquivos do lado
   Revit compilam, helpers puros rodam com semântica Py2 e o token remoto faz a

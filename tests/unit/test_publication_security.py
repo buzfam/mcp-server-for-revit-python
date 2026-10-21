@@ -96,6 +96,58 @@ def test_revit_review_decline_and_accept_show_request(route_security, paired_use
     assert security.authorize_request(request, "Execute Python code").status == 400
 
 
+FAKE_TOKEN = "a" * 64
+
+
+@pytest.fixture
+def fake_pairing(monkeypatch):
+    """Pairing without DPAPI, so the body-token path is tested on any OS."""
+    monkeypatch.setattr(pairing, "get_token", lambda: FAKE_TOKEN)
+    return FAKE_TOKEN
+
+
+def test_body_token_authenticates_when_headers_are_hidden(fake_pairing):
+    assert pairing.validate_request({}, fake_pairing)
+    assert pairing.validate_request(None, fake_pairing)
+    assert not pairing.validate_request({}, "wrong")
+    assert not pairing.validate_request({}, None)
+    assert not pairing.validate_request({"Origin": "null"}, fake_pairing)
+    # A header, when pyRevit exposes one, is authoritative over the body.
+    assert not pairing.validate_request({"Authorization": "Bearer wrong"}, fake_pairing)
+    assert pairing.validate_request({"Authorization": "Bearer " + fake_pairing}, "wrong")
+    assert pairing.authorization_body({"a": 1}) == {"a": 1, pairing.AUTH_FIELD: fake_pairing}
+
+
+@pytest.mark.parametrize("as_json_text", [False, True])
+def test_route_accepts_body_token_and_strips_it_before_review(route_security, fake_pairing, as_json_text):
+    security, _, alert = route_security
+    payload = pairing.authorization_body({"code": "print('review me')"})
+    request = SimpleNamespace(data=json.dumps(payload) if as_json_text else payload, headers={})
+    alert.return_value = True
+    assert security.authorize_request(request, "Execute Python code") is None
+    assert request.data == {"code": "print('review me')"}
+    assert fake_pairing not in alert.call_args.kwargs["sub_msg"]
+
+
+def test_route_authorizes_twice_with_one_body_token(route_security, fake_pairing):
+    # bulk_set_parameters authenticates first and shows the review afterwards.
+    security, _, alert = route_security
+    request = SimpleNamespace(data=pairing.authorization_body({"dry_run": False}), headers={})
+    assert security.authorize_request(request) is None
+    alert.return_value = True
+    assert security.authorize_request(request, "Set element parameters") is None
+    assert request.data == {"dry_run": False}
+
+
+def test_route_rejects_wrong_or_missing_body_token(route_security, fake_pairing):
+    security, _, alert = route_security
+    request = SimpleNamespace(data={pairing.AUTH_FIELD: "wrong"}, headers={})
+    assert security.authorize_request(request).status == 401
+    assert request.data == {}
+    assert security.authorize_request(SimpleNamespace(data=None, headers={})).status == 401
+    alert.assert_not_called()
+
+
 def _route_functions():
     functions = []
     for path in (ROOT / "revit_mcp").glob("*.py"):
@@ -154,8 +206,14 @@ async def test_revit_http_client_has_auth_and_ignores_proxies(paired_user, monke
         return original(transport=httpx.MockTransport(handler), **kwargs)
     monkeypatch.setattr(main.httpx, "AsyncClient", client)
     assert await main.revit_get("/status/") == {"status": "active"}
-    assert observed[0].headers["authorization"] == "Bearer " + paired_user
-    assert observed[0].url.host in {"127.0.0.1", "localhost", "::1"}
+    assert await main.revit_post("/execute_code/", {"code": "1"}) == {"status": "active"}
+    # pyRevit Routes hides headers from route handlers: the secret goes in the body.
+    assert json.loads(observed[0].content) == {pairing.AUTH_FIELD: paired_user}
+    assert json.loads(observed[1].content) == {"code": "1", pairing.AUTH_FIELD: paired_user}
+    for request in observed:
+        assert "authorization" not in request.headers
+        assert paired_user not in str(request.url)
+        assert request.url.host in {"127.0.0.1", "localhost", "::1"}
 
 
 @pytest.mark.parametrize("transport_name", ["sse", "streamable-http", "combined"])

@@ -6,6 +6,16 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 
 ## [Unreleased]
 
+### Corrigido
+- **401 depois do pareamento no pyRevit 6.x/7.0** (upstream #70, #71, #73; pyRevit
+  #3765): o pyRevit Routes não repassa os cabeçalhos HTTP às rotas, então o
+  `Authorization: Bearer` nunca chegava ao Revit. O segredo de pareamento agora
+  vai no corpo JSON (`revit_mcp_auth`, inclusive em GET), e `authorize_request`
+  o remove antes da rota e do diálogo de revisão. O cabeçalho continua valendo
+  primeiro se uma versão do pyRevit passar a expô-lo. Baseado no PR upstream #72,
+  com o token guardado no request para rotas que autorizam duas vezes
+  (`bulk_set_parameters`).
+
 ### Adicionado
 - CI `IronPython 2.7 compatibility` (`.github/workflows/ironpython.yml` +
   `scripts/ironpython_check.py`): compila todo o código que roda no Revit com

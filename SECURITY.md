@@ -2,6 +2,13 @@
 > com token próprio, lista de `Host` e TLS opcional; a ponte com o Revit continua só em
 > loopback. O texto abaixo é do upstream e descreve o modo local. Veja
 > [docs/specs/006-network-access.md](docs/specs/006-network-access.md).
+>
+> **Segredo no corpo, não no cabeçalho:** o pyRevit Routes (6.x/7.0) não repassa
+> cabeçalhos às rotas, então a ponte `main.py → Revit` manda o segredo de pareamento
+> no campo `revit_mcp_auth` do corpo JSON (nunca na URL), removido antes da rota e
+> do diálogo. Sem cabeçalhos, a rota não vê `Origin`; a proteção contra navegador
+> passa a ser o próprio segredo. O texto abaixo sobre "headers" vale para versões
+> do pyRevit que os exponham.
 
 # Security boundaries and reporting
 

@@ -8,7 +8,7 @@ import anyio
 from mcp.server.fastmcp import FastMCP, Image, Context
 import base64
 from typing import Optional, Dict, Any, Union
-from revit_mcp.pairing import authorization_headers, validate_request
+from revit_mcp.pairing import authorization_body, validate_request
 from tools.http_security import PairingMiddleware
 from tools.remote_access import (
     LOOPBACK_HOSTS,
@@ -55,8 +55,8 @@ async def revit_post(endpoint: str, data: Dict[str, Any], ctx: Context = None, *
 async def revit_image(endpoint: str, ctx: Context = None) -> Union[Image, str]:
     """GET request that returns an Image object"""
     try:
-        async with httpx.AsyncClient(timeout=60.0, trust_env=False, headers=authorization_headers()) as client:
-            response = await client.get(f"{BASE_URL}{endpoint}")
+        async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
+            response = await client.request("GET", f"{BASE_URL}{endpoint}", json=authorization_body())
             
             if response.status_code == 200:
                 data = response.json()
@@ -75,13 +75,15 @@ async def _revit_call(method: str, endpoint: str, data: Dict = None, ctx: Contex
                      timeout: float = 30.0, params: Dict = None) -> Union[Dict, str]:
     """Internal function handling all HTTP calls"""
     try:
-        async with httpx.AsyncClient(timeout=timeout, trust_env=False, headers=authorization_headers()) as client:
+        async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             url = f"{BASE_URL}{endpoint}"
 
+            # pyRevit Routes hides headers from route handlers, so the pairing
+            # secret travels in the JSON body of every call, GET included.
             if method == "GET":
-                response = await client.get(url, params=params)
+                response = await client.request("GET", url, params=params, json=authorization_body())
             else:  # POST
-                response = await client.post(url, json=data, headers={"Content-Type": "application/json"})
+                response = await client.post(url, json=authorization_body(data))
 
             return response.json() if response.status_code == 200 else f"Error: {response.status_code} - {response.text}"
     except httpx.TimeoutException:

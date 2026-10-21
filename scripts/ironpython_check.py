@@ -137,6 +137,30 @@ def health_helpers():
                                            "many_views_not_on_sheets"]
 
 
+def body_token_pairing():
+    import json
+    from revit_mcp import pairing, security
+
+    class Request(object):
+        def __init__(self, data):
+            self.data = data
+            self.headers = {}
+
+    original = pairing.get_token
+    pairing.get_token = lambda: u"a" * 64
+    try:
+        # pyRevit hands over json.loads output: unicode keys and values.
+        request = Request(json.loads(json.dumps(pairing.authorization_body({"dry_run": True}))))
+        token = security._pop_body_token(request)
+        assert request.data == {u"dry_run": True}, request.data
+        assert pairing.validate_request(request.headers, token)
+        assert security._pop_body_token(request) == token
+        assert not pairing.validate_request({}, u"b" * 64)
+        assert not pairing.validate_request({u"Origin": u"null"}, token)
+    finally:
+        pairing.get_token = original
+
+
 def utils_unicode():
     from revit_mcp.utils import normalize_string
     assert normalize_string(u"T\u00e9rreo ") == u"T\u00e9rreo"
@@ -150,6 +174,7 @@ check("remote_server helpers", remote_server_helpers)
 check("remote_token DPAPI round trip", remote_token_dpapi)
 check("parameters helpers", parameter_helpers)
 check("health helpers", health_helpers)
+check("body token pairing", body_token_pairing)
 check("utils unicode", utils_unicode)
 
 if failures:
