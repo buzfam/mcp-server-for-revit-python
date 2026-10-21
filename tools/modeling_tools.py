@@ -232,7 +232,8 @@ def register_modeling_tools(mcp, revit_get, revit_post):
         for approval in Revit once for the whole batch and is a single undo step.
 
         Tags are placed only when the active view is a floor plan of the
-        room's level; otherwise the result says the tag was skipped.
+        room's level; otherwise the result says the tag was skipped. A tag
+        Revit refuses does not undo the room: the result says "tag": "failed: ...".
 
         Args:
             rooms: 1-200 items like {"point": [2.5, 2.0], "name": "Sala", "number": "101"}.
@@ -272,9 +273,13 @@ def register_modeling_tools(mcp, revit_get, revit_post):
               point along its location line; or
             - {"point": [x, y]}: the nearest wall whose location line is within
               0.5 m is used (optionally only walls on "level"), and the
-              instance goes to the closest point on it; or
+              instance goes to the closest point on it. If walls on several
+              levels are equally close (stacked floors), pass "level" or
+              wall_id; or
             - {"wall_id": 123, "point": [x, y]}: that wall, closest point.
-        Optional: "sill_height_m" (windows), "flip_hand", "flip_facing".
+        Optional: "sill_height_m" (windows; without it the family's default
+        sill is kept, and the result reports the sill applied), "flip_hand",
+        "flip_facing". Each result reports the wall's level.
 
         Use list_families with contains="door"/"porta" or "window"/"janela" to
         find loaded family and type names. If no door or window family is

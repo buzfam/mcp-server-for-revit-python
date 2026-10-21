@@ -86,6 +86,9 @@ com `include_details`). Filtro de nível sem resultado → `levels_with_rooms`.
   cabeçalhos dos campos (quando o número bate) ou "Column N". Linhas em
   branco (separadores de agrupamento) são descartadas. Os valores são os
   textos formatados, nas unidades do projeto.
+- Campos ocultos (`ScheduleField.IsHidden`): se a seção `Body` tiver uma coluna
+  por campo (ocultos incluídos), as colunas dos campos ocultos são descartadas
+  pelo índice antes de comparar cabeçalhos; se tiver só as visíveis, lê todas.
 - Tabelas de revisão de folha e templates são ignorados.
 - Ambientes: nome por `ROOM_NAME` e número por `ROOM_NUMBER`
   (`room.Name` dá `AttributeError` no IronPython). Área em m²
@@ -120,3 +123,5 @@ com `include_details`). Filtro de nível sem resultado → `levels_with_rooms`.
 - [ ] `export_rooms` com ambientes não posicionados e não fechados.
 - [ ] Filtro por nível com acento ("Térreo").
 - [ ] Áreas conferem com o quadro de áreas do Revit.
+- [ ] Tabela com campo oculto no meio: colunas e valores sem o campo oculto, alinhados.
+- [ ] Tabela grande (milhares de linhas) responde dentro do timeout de 120 s.

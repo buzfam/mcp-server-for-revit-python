@@ -67,7 +67,7 @@ class TestExportSchedule:
         self.mock_post.assert_called_once_with(
             "/export_schedule/",
             {"limit": 200, "format": "json", "schedule_name": "Tabela de portas"},
-            None, timeout=60.0)
+            None, timeout=120.0)
 
     async def test_by_id_csv(self):
         await self.tool(schedule_id=7, format="csv", limit=5, ctx=None)
@@ -102,7 +102,7 @@ class TestExportRooms:
         self.mock_post.assert_called_once_with(
             "/export_rooms/",
             {"include_unplaced": True, "include_details": False, "limit": 200, "format": "json"},
-            None, timeout=60.0)
+            None, timeout=120.0)
 
     async def test_level_filter_and_csv(self):
         await self.tool(level=u"Térreo", format="csv", include_details=True, ctx=None)

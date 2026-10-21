@@ -8,6 +8,7 @@ from pyrevit import routes, DB
 import json
 import logging
 from .security import authorize_request
+from .transactions import Batch
 from .utils import (
     normalize_string,
     element_id_value,
@@ -99,14 +100,18 @@ def run_tagging(doc, to_tag, create_tag, commit):
 
     create_tag(element) returns the new tag. Elements Revit refuses to tag are
     reported in "failed" and the others are kept (partial success). The
-    transaction is rolled back when commit is False or nothing was tagged.
-    Returns (tagged_ids, tag_ids, failed, error).
+    transaction runs inside a TransactionGroup with a failures preprocessor:
+    Revit warnings are returned instead of opening dialogs, and a dry run still
+    goes through Revit's failure processing before the group is rolled back.
+    Nothing is kept when commit is False or nothing was tagged.
+    Returns a dict: tagged, tag_ids, failed, error, warnings, revit_errors.
     """
-    tagged = []
+    outcome = {"tagged": [], "tag_ids": [], "failed": [], "error": None,
+               "warnings": [], "revit_errors": []}
+    tagged = outcome["tagged"]
     tag_ids = []
-    failed = []
-    transaction = DB.Transaction(doc, "MCP: tag elements")
-    transaction.Start()
+    batch = Batch(doc, "MCP: tag elements")
+    batch.start()
     try:
         for element_id, element in to_tag:
             try:
@@ -116,19 +121,22 @@ def run_tagging(doc, to_tag, create_tag, commit):
                 tagged.append(element_id)
                 tag_ids.append(element_id_value(tag.Id))
             except Exception as e:
-                failed.append({"element_id": element_id, "error": normalize_string(str(e))})
+                outcome["failed"].append({"element_id": element_id,
+                                          "error": normalize_string(str(e))})
 
-        if not commit or not tagged:
-            transaction.RollBack()
-            return tagged, [], failed, None
-        status = transaction.Commit()
-        if status != DB.TransactionStatus.Committed:
-            return [], [], failed, "Revit did not commit the transaction ({})".format(status)
+        if not tagged:
+            batch.rollback()
+        elif not batch.finish(commit):
+            outcome["tagged"] = []
+            outcome["error"] = "Revit did not commit the transaction ({})".format(batch.status)
+        elif commit:
+            outcome["tag_ids"] = tag_ids
     except Exception:
-        if transaction.HasStarted() and not transaction.HasEnded():
-            transaction.RollBack()
+        batch.abort()
         raise
-    return tagged, tag_ids, failed, None
+    outcome["warnings"] = batch.warnings
+    outcome["revit_errors"] = batch.errors
+    return outcome
 
 
 def _safe_name(element):
@@ -172,17 +180,38 @@ def _resolve_view(doc, uidoc, view_id, view_name):
         return view, None
     if view_name:
         wanted = u" ".join(normalize_string(view_name).lower().split())
+        matches = []
         for view in DB.FilteredElementCollector(doc).OfClass(DB.View):
             if view.IsTemplate:
                 continue
             name = _safe_name(view)
             if name and u" ".join(name.lower().split()) == wanted:
-                return view, None
-        return None, u"View '{}' not found".format(normalize_string(view_name))
+                matches.append(view)
+        return pick_named_view(matches, view_name)
     view = uidoc.ActiveView if uidoc is not None else doc.ActiveView
     if view is None:
         return None, "No active view"
     return view, None
+
+
+def pick_named_view(matches, view_name):
+    """One view among the non-template views with the requested name.
+
+    A floor plan and a ceiling plan (or a sheet) often share a name such as
+    "Térreo". When several match, the ones that can hold tags are kept; if
+    still more than one, the caller must use view_id. Returns (view, error)."""
+    if not matches:
+        return None, u"View '{}' not found".format(normalize_string(view_name))
+    if len(matches) > 1:
+        taggable = [v for v in matches if str(v.ViewType) in TAGGABLE_VIEW_TYPES]
+        if len(taggable) == 1:
+            return taggable[0], None
+        if taggable:
+            matches = taggable
+        return None, u"{} views named '{}' ({}); use view_id".format(
+            len(matches), normalize_string(view_name),
+            u", ".join(sorted(set(str(v.ViewType) for v in matches))))
+    return matches[0], None
 
 
 def _view_error(view):
@@ -195,8 +224,9 @@ def _view_error(view):
 
 
 def _tag_types(doc, category_names):
-    """FamilySymbols loaded for the first tag category that has any.
-    Returns (builtin_category, [symbols])."""
+    """[(builtin_category, [symbols])] for every candidate tag category that has
+    loaded types, best category first."""
+    found = []
     for name in category_names:
         builtin = getattr(DB.BuiltInCategory, name, None)
         if builtin is None:
@@ -204,18 +234,22 @@ def _tag_types(doc, category_names):
         symbols = list(DB.FilteredElementCollector(doc).OfCategory(builtin)
                        .WhereElementIsElementType())
         if symbols:
-            return builtin, symbols
-    return None, []
+            found.append((builtin, symbols))
+    return found
 
 
-def _pick_tag_type(doc, builtin, symbols, requested):
-    """Requested tag type by name, else the category default, else the first."""
+def _pick_tag_type(doc, tag_types, requested):
+    """A requested tag type is searched in every candidate tag category (e.g. a
+    multi-category tag for doors); otherwise the default type of the best
+    category, else its first type. Returns the symbol or None."""
     if requested:
-        for symbol in symbols:
-            family = getattr(symbol, "FamilyName", None)
-            if tag_type_matches(requested, family, _safe_name(symbol)):
-                return symbol
+        for _, symbols in tag_types:
+            for symbol in symbols:
+                family = getattr(symbol, "FamilyName", None)
+                if tag_type_matches(requested, family, _safe_name(symbol)):
+                    return symbol
         return None
+    builtin, symbols = tag_types[0]
     try:
         default_id = doc.GetDefaultFamilyTypeId(DB.ElementId(builtin))
         if default_id is not None and default_id != DB.ElementId.InvalidElementId:
@@ -380,16 +414,17 @@ def register_annotation_routes(api):
                 tag_categories = ["OST_AreaTags"]
             else:
                 tag_categories = tag_category_candidates(builtin_name)
-            tag_builtin, symbols = _tag_types(doc, tag_categories)
-            if not symbols:
+            tag_types = _tag_types(doc, tag_categories)
+            if not tag_types:
                 return routes.make_response(
                     data={"error": u"No tag type loaded for '{}'; load a tag family "
                                    u"first".format(normalize_string(category.Name))},
                     status=400)
             requested_type = data.get("tag_type")
-            symbol = _pick_tag_type(doc, tag_builtin, symbols, requested_type)
+            symbol = _pick_tag_type(doc, tag_types, requested_type)
             if symbol is None:
-                available = sorted(set(_tag_label(s) for s in symbols))[:50]
+                available = sorted(set(_tag_label(s) for _, symbols in tag_types
+                                       for s in symbols))[:50]
                 return routes.make_response(
                     data={"error": u"Tag type '{}' not found".format(
                         normalize_string(requested_type)), "available": available},
@@ -413,7 +448,8 @@ def register_annotation_routes(api):
             # Room/area tags only change type when one was asked for.
             tag_type_id = symbol.Id if (kind == "element" or requested_type) else None
             create = _tag_creator(doc, view, kind, tag_type_id, add_leader)
-            tagged, tag_ids, failed, error = run_tagging(doc, to_tag, create, commit=not dry_run)
+            outcome = run_tagging(doc, to_tag, create, commit=not dry_run)
+            tagged, failed, error = outcome["tagged"], outcome["failed"], outcome["error"]
 
             result = {
                 "status": "dry_run" if dry_run else "success",
@@ -426,17 +462,19 @@ def register_annotation_routes(api):
                 "failed_count": len(failed),
                 "failed": failed[:MAX_FAILURES_LISTED],
                 "truncated": truncated,
+                "warnings": outcome["warnings"],
             }
             if error:
                 result["status"] = "error"
                 result["error"] = error
                 result["tagged"] = 0
+                result["revit_errors"] = outcome["revit_errors"]
                 return routes.make_response(data=result, status=500)
             if dry_run:
                 result["message"] = ("Dry run: {} elements can be tagged. Nothing was changed; call "
                                   "again with dry_run=false to tag them.".format(len(tagged)))
             else:
-                result["tag_ids"] = tag_ids
+                result["tag_ids"] = outcome["tag_ids"]
             return routes.make_response(data=result)
 
         except Exception as e:

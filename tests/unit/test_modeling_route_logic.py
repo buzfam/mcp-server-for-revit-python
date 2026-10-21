@@ -90,6 +90,9 @@ class FakeParameter:
     def AsString(self):
         return self.value
 
+    def AsDouble(self):
+        return self.value
+
 
 class Level(Element):
     pass
@@ -169,6 +172,7 @@ class FakeDoc:
         return self.default_wall_type.Id if self.default_wall_type else None
 
     def GetRoomAtPoint(self, point):
+        LOG.append(("GetRoomAtPoint", point.Z))
         return self.existing_room
 
     def area_at(self, uv):
@@ -278,7 +282,8 @@ def modeling(monkeypatch):
         BuiltInCategory=SimpleNamespace(OST_Doors="doors", OST_Windows="windows"),
         ElementTypeGroup=SimpleNamespace(WallType="WallType"),
         WallUtils=SimpleNamespace(DisallowWallJoinAtEnd=lambda w, end: LOG.append(("nojoin", end))),
-        Plane=SimpleNamespace(CreateByNormalAndOrigin=lambda n, o: "plane"),
+        Plane=SimpleNamespace(CreateByNormalAndOrigin=lambda n, o: LOG.append(("plane", o.Z))),
+        ViewType=SimpleNamespace(FloorPlan="FloorPlan", CeilingPlan="CeilingPlan"),
         SketchPlane=SimpleNamespace(Create=lambda doc, plane: "sketch"),
         CurveArray=list, LinkElementId=lambda element_id: element_id,
         Structure=SimpleNamespace(StructuralType=SimpleNamespace(NonStructural="NonStructural")),
@@ -290,7 +295,8 @@ def modeling(monkeypatch):
     for name in ("long", "basestring", "unicode"):
         monkeypatch.setattr(builtins, name, {"long": int, "basestring": str, "unicode": str}[name],
                             raising=False)
-    names = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.modeling")
+    names = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.transactions",
+             "revit_mcp.modeling")
     for name in names:
         sys.modules.pop(name, None)
     module = importlib.import_module("revit_mcp.modeling")
@@ -303,8 +309,8 @@ def modeling(monkeypatch):
 @pytest.fixture
 def doc():
     d = FakeDoc()
-    d.level0 = Level(d, u"Térreo", Elevation=0.0)
-    d.level1 = Level(d, "Pavimento 1", Elevation=10.0)
+    d.level0 = Level(d, u"Térreo", Elevation=0.0, ProjectElevation=0.0)
+    d.level1 = Level(d, "Pavimento 1", Elevation=10.0, ProjectElevation=10.0)
     d.generic = WallType(d, "Generic - 200mm")
     d.brick = WallType(d, "Tijolo 15")
     d.default_wall_type = d.generic
@@ -415,6 +421,9 @@ def test_validate_room(modeling, item, message):
     ({"family": "Porta"}, "wall_id or point"),
     ({"family": "Porta", "wall_id": 5}, "offset_m"),
     ({"family": "Porta", "wall_id": "x", "offset_m": 1}, "integer"),
+    ({"family": "Porta", "wall_id": 5.0, "offset_m": 1}, "integer"),
+    ({"family": "Porta", "wall_id": "5", "offset_m": 1}, "integer"),
+    ({"family": "Porta", "wall_id": True, "offset_m": 1}, "integer"),
     ({"family": "Porta", "wall_id": 5, "offset_m": -1}, ">= 0"),
     ({"family": "Porta", "point": [1, 0], "flip_facing": 1}, "flip_facing"),
 ])
@@ -520,7 +529,7 @@ def test_exception_in_one_item_rolls_back_all(modeling, doc, monkeypatch):
 
 def test_create_rooms_by_point_reports_area_and_tags(modeling, doc):
     doc.enclosed.append([(0, 0), (4 * FT, 0), (4 * FT, 3 * FT), (0, 3 * FT)])
-    doc.ActiveView = ViewPlan(doc, "Planta", IsTemplate=False, GenLevel=doc.level0)
+    doc.ActiveView = ViewPlan(doc, "Planta", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level0)
     result = modeling.create_rooms(doc, [{"point": [1, 1], "name": u"Cozinha", "number": 3}],
                                    {}, commit=True)
     assert result["status"] == "success", result
@@ -541,7 +550,7 @@ def test_room_not_enclosed_is_an_item_error(modeling, doc):
 
 
 def test_room_by_boundary_draws_separation_lines(modeling, doc):
-    plan = ViewPlan(doc, "Planta", IsTemplate=False, GenLevel=doc.level0)
+    plan = ViewPlan(doc, "Planta", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level0)
     result = modeling.create_rooms(doc, [{"boundary": [[0, 0], [2, 0], [2, 2], [0, 2]]}],
                                    {"tag": False}, commit=False)
     assert result["status"] == "dry_run", result
@@ -553,7 +562,7 @@ def test_room_by_boundary_draws_separation_lines(modeling, doc):
 
 def test_room_tag_skipped_outside_plan_of_level(modeling, doc):
     doc.enclosed.append([(0, 0), (4 * FT, 0), (4 * FT, 3 * FT), (0, 3 * FT)])
-    doc.ActiveView = ViewPlan(doc, "Planta 1", IsTemplate=False, GenLevel=doc.level1)
+    doc.ActiveView = ViewPlan(doc, "Planta 1", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level1)
     result = modeling.create_rooms(doc, [{"point": [1, 1]}], {}, commit=True)
     assert result["results"][0]["tag"].startswith("skipped")
 
@@ -565,7 +574,7 @@ def test_existing_room_and_missing_plan_are_rejected(modeling, doc):
     doc.existing_room = None
     result = modeling.create_rooms(doc, [{"boundary": [[0, 0], [2, 0], [2, 2]]}], {}, commit=True)
     assert "No floor plan" in result["errors"][0]["error"]
-    assert LOG == []
+    assert [entry for entry in LOG if entry[0] != "GetRoomAtPoint"] == []   # no transaction
 
 
 # ---- place_hosted_families ----
@@ -686,3 +695,106 @@ def test_batch_route_asks_for_approval_only_for_real_runs(modeling, doc, monkeyp
     missing = modeling._batch_route(None, Request({}), "walls", "walls", "Create walls",
                                     validator, run)
     assert missing["status"] == 503
+
+
+# ---- review fixes ----
+
+def test_keys_within(modeling):
+    segments = [("a", (0, 0), (5, 0)), ("b", (0, 0), (5, 0)), ("a", (5, 0), (5, 5)),
+                ("c", (0, 3), (5, 3))]
+    assert modeling.keys_within((2, 0.2), segments, 0.2 + 1e-6) == ["a", "b"]
+
+
+def test_geometry_uses_project_elevation_not_elevation(modeling, doc):
+    """Elevation Base = Survey Point: Elevation is 100 ft but the level is at the
+    internal origin. Walls, room probes and sketch planes must use ProjectElevation."""
+    survey = Level(doc, "Survey", Elevation=100.0, ProjectElevation=0.0)
+    doc.level0.Elevation, doc.level1.Elevation = 50.0, 60.0
+    result = modeling.create_walls(doc, [{"start": [0, 0], "end": [5, 0], "level": "Survey"}],
+                                   {}, commit=False)
+    assert result["status"] == "dry_run", result
+    wall = [e for e in doc.elements.values() if isinstance(e, Wall)][0]
+    assert wall.Location.Curve.a.Z == 0.0
+
+    LOG.clear()
+    plan = ViewPlan(doc, "Planta S", IsTemplate=False, ViewType="FloorPlan", GenLevel=survey)
+    modeling.create_rooms(doc, [{"boundary": [[0, 0], [2, 0], [2, 2], [0, 2]]}],
+                          {"level": "Survey", "tag": False}, commit=False)
+    assert ("GetRoomAtPoint", 1.0) in LOG and ("plane", 0.0) in LOG
+    assert ("NewRoomBoundaryLines", 4, plan.Id.Value) in LOG
+
+
+def test_level_order_still_uses_elevation(modeling, doc):
+    doc.level1.ProjectElevation = -5.0   # odd internal values do not change ordering
+    result = modeling.create_walls(doc, [{"start": [0, 0], "end": [5, 0],
+                                          "top_level": "Pavimento 1"}], {}, commit=False)
+    assert result["status"] == "dry_run", result
+
+
+def test_ceiling_plan_is_not_a_floor_plan(modeling, doc):
+    doc.enclosed.append([(0, 0), (4 * FT, 0), (4 * FT, 3 * FT), (0, 3 * FT)])
+    doc.ActiveView = ViewPlan(doc, "Forro", IsTemplate=False, ViewType="CeilingPlan",
+                              GenLevel=doc.level0)
+    result = modeling.create_rooms(doc, [{"point": [1, 1]}], {}, commit=True)
+    assert result["results"][0]["tag"].startswith("skipped")
+    assert not any(entry[0] == "NewRoomTag" for entry in LOG if isinstance(entry, tuple))
+    boundary = modeling.create_rooms(doc, [{"boundary": [[5, 5], [7, 5], [7, 7], [5, 7]]}],
+                                     {}, commit=False)
+    assert "No floor plan" in boundary["errors"][0]["error"]
+
+
+def test_room_tag_failure_does_not_fail_the_batch(modeling, doc, monkeypatch):
+    doc.enclosed.append([(0, 0), (4 * FT, 0), (4 * FT, 3 * FT), (0, 3 * FT)])
+    doc.ActiveView = ViewPlan(doc, "Planta", IsTemplate=False, ViewType="FloorPlan",
+                              GenLevel=doc.level0)
+
+    def refuse(link_id, uv, view_id):
+        raise Exception(u"Não foi possível etiquetar")
+
+    monkeypatch.setattr(doc.Create, "NewRoomTag", refuse)
+    result = modeling.create_rooms(doc, [{"point": [1, 1]}], {}, commit=True)
+    assert result["status"] == "success", result
+    room = result["results"][0]
+    assert room["tag"] == u"failed: Não foi possível etiquetar" and "tag_id" not in room
+    assert LOG[-2:] == ["t.commit", "group.assimilate"]
+
+
+def test_point_without_level_rejects_stacked_walls(modeling, doc):
+    _symbol(doc, "Janela", "120x100", category="windows")
+    _wall(doc, (0, 0), (5, 0), doc.level0)
+    upper = _wall(doc, (0, 0), (5, 0), doc.level1)
+    result = modeling.place_hosted_families(doc, [{"family": "Janela", "point": [2, 0.1]}],
+                                            commit=False)
+    assert result["status"] == "error"
+    error = result["errors"][0]["error"]
+    assert "2 levels" in error and u"Térreo" in error and "Pavimento 1" in error
+    assert "level or wall_id" in error and LOG == []
+
+    ok = modeling.place_hosted_families(
+        doc, [{"family": "Janela", "point": [2, 0.1], "level": "pavimento 1"}], commit=False)
+    assert ok["status"] == "dry_run", ok
+    assert ok["results"][0]["wall_id"] == upper.Id.Value
+    assert ok["results"][0]["level"] == "Pavimento 1"
+
+
+def test_window_without_sill_keeps_family_default(modeling, doc):
+    _symbol(doc, "Janela", "120x100", category="windows")
+    _wall(doc, (0, 0), (5, 0), doc.level0)
+    original = FakeCreate.NewFamilyInstance
+
+    def create(self, point, symbol, host, level, structural):
+        instance = original(self, point, symbol, host, level, structural)
+        instance.params["INSTANCE_SILL_HEIGHT_PARAM"] = FakeParameter(1.0 * FT)
+        return instance
+
+    FakeCreate.NewFamilyInstance = create
+    try:
+        result = modeling.place_hosted_families(doc, [{"family": "Janela", "point": [2, 0]}],
+                                                commit=True)
+    finally:
+        FakeCreate.NewFamilyInstance = original
+    assert result["status"] == "success", result
+    first = result["results"][0]
+    assert first["sill_height_m"] == pytest.approx(1.0) and first["level"] == u"Térreo"
+    instance = doc.GetElement(first["element_id"])
+    assert instance.params["INSTANCE_SILL_HEIGHT_PARAM"].value == pytest.approx(1.0 * FT)

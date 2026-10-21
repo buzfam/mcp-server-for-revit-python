@@ -345,6 +345,30 @@ def quantity_helpers():
     assert line["quantity"] == 10.0 and line["quantity_with_waste"] == 11.0
 
 
+def review_fix_helpers():
+    from revit_mcp import transactions, modeling, sheets, exports, annotation
+    assert transactions.add_unique([u"a"], u"a") == [u"a"]
+    assert transactions.add_unique([u"a"], u"á") == [u"a", u"á"]
+    assert modeling._failure_collector is transactions.failure_collector
+    assert modeling.keys_within((2, 0.2), [("a", (0, 0), (5, 0)), ("b", (0, 0), (5, 0)),
+                                           ("c", (0, 3), (5, 3))], 0.2 + 1e-6) == ["a", "b"]
+    assert modeling.validate_hosted({"family": u"Porta", "wall_id": 5.0, "offset_m": 1}) \
+        == "wall_id must be an integer"
+    assert modeling.validate_hosted({"family": u"Porta", "wall_id": long(5), "offset_m": 1}) is None
+    assert sheets.sheet_anchor(0, 0, 4, 2, "centre") == (2.0, 1.0)
+    assert sheets.sheet_anchor(0, 0, 4, 2, "top_left", 0.1) == (0.1, 1.9)
+    assert exports.visible_columns([False, True, False], 3) == [0, 2]
+    assert exports.visible_columns([False, True, False], 2) == [0, 1]
+
+    class V(object):
+        def __init__(self, view_type):
+            self.ViewType = view_type
+    plan, ceiling = V("FloorPlan"), V("CeilingPlan")
+    assert annotation.pick_named_view([plan], u"Térreo") == (plan, None)
+    view, error = annotation.pick_named_view([plan, ceiling], u"Térreo")
+    assert view is None and u"use view_id" in error
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -363,6 +387,7 @@ check("audit helpers", audit_helpers)
 check("sheet check helpers", sheet_check_helpers)
 check("material check helpers", material_check_helpers)
 check("quantity helpers", quantity_helpers)
+check("review fix helpers", review_fix_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

@@ -91,6 +91,17 @@ Carimbo não encontrado ou ambíguo → `{"status": "error", "error": ..., "avai
   lote → erro. Tabelas (`ViewSchedule`) e legendas podem repetir; tabelas
   usam `ScheduleSheetInstance.Create`. Tabelas de revisão do carimbo e de
   notas-chave internas → erro.
+- Ponto de inserção: a `Viewport` é posicionada pelo **centro**; a
+  `ScheduleSheetInstance`, pelo **canto superior esquerdo**. Sem `x`/`y`, vistas
+  vão para o centro do carimbo e tabelas para o canto superior esquerdo do
+  carimbo, 2 cm para dentro (`Min.X + margem`, `Max.Y - margem`). Com `x`/`y`, o
+  ponto é o centro (vista) ou o canto superior esquerdo (tabela). Cada resultado
+  traz `"anchor": "centre"` ou `"top_left"`.
+- Transação dentro de um `TransactionGroup` com `IFailuresPreprocessor`
+  (`revit_mcp/transactions.py`): avisos do Revit voltam em `warnings` (até 50)
+  em vez de abrir diálogos que travariam a requisição; erros desfazem tudo. O
+  `dry_run` faz `Commit` da transação (o Revit processa as falhas) e depois
+  desfaz o grupo; a execução real assimila o grupo (um só Ctrl+Z).
 - Entrada em metros, convertida para pés (`/ 0.3048`); a resposta devolve
   `position_m` em metros.
 - Erros de formato (lista vazia, > 200, item sem campos) → HTTP 400.
@@ -107,7 +118,8 @@ Carimbo não encontrado ou ambíguo → `{"status": "error", "error": ..., "avai
 - `FilteredElementCollector.OfCategory(BuiltInCategory.OST_TitleBlocks)`, `FamilySymbol.FamilyName`
 - `Viewport.CanAddViewToSheet`, `Viewport.Create`, `ScheduleSheetInstance.Create`
 - `Element.get_BoundingBox(sheet)` do carimbo, `ViewSheet.Outline`
-- `DB.Transaction`, `Commit`/`RollBack`, `TransactionStatus`
+- `DB.Transaction`, `DB.TransactionGroup` (`Assimilate`/`RollBack`), `Commit`/`RollBack`, `TransactionStatus`
+- `IFailuresPreprocessor`, `FailuresAccessor.DeleteWarning`, `FailureHandlingOptions`
 
 ## Testes
 - Unitário (wrapper, `tests/unit/test_sheet_tools.py`): endpoint, `dry_run=True`
@@ -123,5 +135,8 @@ Carimbo não encontrado ou ambíguo → `{"status": "error", "error": ..., "avai
 - [ ] Número já existente → nada criado, erro com índice
 - [ ] Carimbo padrão e carimbo por `"Família : Tipo"` com acento
 - [ ] Vista posicionada no centro do carimbo; com `x`/`y` em metros na posição certa
+- [ ] Tabela sem `x`/`y` fica no canto superior esquerdo do carimbo, dentro da folha (`anchor: top_left`)
+- [ ] Tabela com `x`/`y`: o canto superior esquerdo fica no ponto pedido
+- [ ] Aviso do Revit durante o posicionamento volta em `warnings`, sem diálogo travando o pedido
 - [ ] Tabela posicionada em duas folhas
 - [ ] Vista já em outra folha → erro, nada posicionado

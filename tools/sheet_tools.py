@@ -120,6 +120,7 @@ def register_sheet_tools(mcp, revit_get, revit_post):
         reports the positions, WITHOUT changing the model. Show that plan to
         the user, then call again with dry_run=false. The real run asks for
         approval in Revit once for the whole batch and is a single undo step.
+        Revit warnings are returned in "warnings" instead of dialogs.
 
         A model view (plan, section, 3D...) can be on one sheet only; schedules
         and legends can go on several. Use list_revit_views to find view names;
@@ -129,8 +130,11 @@ def register_sheet_tools(mcp, revit_get, revit_post):
         Args:
             placements: 1-200 items like {"sheet_number": "A101", "view": "Térreo"}
                 or {"sheet_number": "A101", "view_id": 123456, "x": 0.42, "y": 0.30}.
-                x/y: centre of the view on the sheet, in meters from the sheet
-                origin (both or neither). Default: centre of the title block.
+                x/y in meters from the sheet origin (both or neither): the centre
+                of a view, but the TOP-LEFT corner of a schedule (Revit places
+                schedules by that corner). Default: views at the centre of the
+                title block; schedules at its top-left corner, 2 cm inside.
+                Each result reports "anchor": "centre" or "top_left".
             dry_run: Validate and preview only (default true). Use false to place.
         """
         error = _batch_error(placements, "placements", _placement_error)

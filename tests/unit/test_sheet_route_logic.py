@@ -10,7 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
-MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.sheets")
+MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.transactions", "revit_mcp.sheets")
 
 
 class Eid(int):
@@ -168,11 +168,35 @@ class Collector:
         return iter(list(self.items))
 
 
+class Accessor:
+    def __init__(self, failures):
+        self.failures = failures
+
+    def GetFailureMessages(self):
+        return [SimpleNamespace(GetSeverity=lambda s=s: s, GetDescriptionText=lambda t=t: t)
+                for s, t in self.failures]
+
+    def DeleteWarning(self, message):
+        pass
+
+
 class Transaction:
     log = []
+    failures = []   # (severity, text) posted on Commit
+    prefix = ""
 
     def __init__(self, doc, name):
         self.doc, self.name, self.started, self.ended = doc, name, False, False
+        self.preprocessor = None
+        self.options = SimpleNamespace(
+            SetFailuresPreprocessor=lambda p: setattr(self, "preprocessor", p),
+            SetClearAfterRollback=lambda value: None)
+
+    def GetFailureHandlingOptions(self):
+        return self.options
+
+    def SetFailureHandlingOptions(self, options):
+        pass
 
     def Start(self):
         self.started = True
@@ -181,12 +205,20 @@ class Transaction:
 
     def Commit(self):
         self.ended = True
+        if Transaction.failures and self.preprocessor is not None:
+            result = self.preprocessor.PreprocessFailures(Accessor(Transaction.failures))
+            if result == "ProceedWithRollBack":
+                self._restore("rollback")
+                return "RolledBack"
         Transaction.log.append("commit")
         return "Committed"
 
     def RollBack(self):
+        self._restore("rollback")
+
+    def _restore(self, entry):
         self.ended = True
-        Transaction.log.append("rollback")
+        Transaction.log.append(self.prefix + entry)
         elements, states = self.saved
         self.doc.elements = elements
         for key, element in elements.items():
@@ -198,6 +230,14 @@ class Transaction:
 
     def HasEnded(self):
         return self.ended
+
+
+class TransactionGroup(Transaction):
+    prefix = "group."
+
+    def Assimilate(self):
+        self.ended = True
+        Transaction.log.append("group.assimilate")
 
 
 class Doc:
@@ -227,7 +267,12 @@ def sheets(monkeypatch):
         View=View, ViewSheet=ViewSheet, ViewSchedule=ViewSchedule, Viewport=Viewport,
         ScheduleSheetInstance=ScheduleSheetInstance, XYZ=XYZ,
         FilteredElementCollector=Collector, Transaction=Transaction,
+        TransactionGroup=TransactionGroup,
         TransactionStatus=SimpleNamespace(Committed="Committed"),
+        IFailuresPreprocessor=object,
+        FailureSeverity=SimpleNamespace(Warning="Warning", Error="Error"),
+        FailureProcessingResult=SimpleNamespace(Continue="Continue",
+                                                ProceedWithRollBack="ProceedWithRollBack"),
         BuiltInCategory=SimpleNamespace(OST_TitleBlocks="tb"),
         BuiltInParameter=SimpleNamespace(SHEET_NAME="SHEET_NAME"),
         ElementId=Eid)
@@ -241,6 +286,7 @@ def sheets(monkeypatch):
         sys.modules.pop(name, None)
     module = importlib.import_module("revit_mcp.sheets")
     Transaction.log = []
+    Transaction.failures = []
     yield module
     for name in MODULES:
         sys.modules.pop(name, None)
@@ -261,6 +307,11 @@ def doc():
     doc.template = View(doc, "Planta Executivo", template=True)
     doc.ceiling_template = View(doc, "Forro Executivo", "CeilingPlan", template=True)
     return doc
+
+
+COMMITTED = ["commit", "group.assimilate"]
+DRY_RUN = ["commit", "group.rollback"]          # Revit checks the commit, then undone
+ROLLED_BACK = ["rollback", "group.rollback"]    # an item failed before the commit
 
 
 def count(doc, cls):
@@ -305,7 +356,7 @@ def test_create_sheets_commit_uses_first_title_block(sheets, doc):
     created = [e for e in doc.elements.values() if isinstance(e, ViewSheet) and e._number != "A100"]
     assert sorted(s._number for s in created) == ["A101", "A102"]
     assert result["results"][0]["name"] == u"Planta Térreo" and "sheet_id" in result["results"][0]
-    assert Transaction.log == ["commit"]
+    assert Transaction.log == COMMITTED
 
 
 def test_create_sheets_dry_run_rolls_back(sheets, doc):
@@ -314,7 +365,7 @@ def test_create_sheets_dry_run_rolls_back(sheets, doc):
     assert result["status"] == "dry_run", result
     assert result["title_block"]["type"] == u"Padrão"
     assert "sheet_id" not in result["results"][0]
-    assert len(doc.elements) == before and Transaction.log == ["rollback"]
+    assert len(doc.elements) == before and Transaction.log == DRY_RUN
 
 
 def test_create_sheets_duplicates_open_no_transaction(sheets, doc):
@@ -332,7 +383,7 @@ def test_create_sheets_revit_rejection_rolls_back_all(sheets, doc):
     result = sheets.create_sheets(doc, [{"number": "A101", "name": "ok"},
                                         {"number": "A102", "name": "!bad"}], None, commit=True)
     assert result["status"] == "error" and result["errors"][0]["index"] == 1
-    assert len(doc.elements) == before and Transaction.log == ["rollback"]
+    assert len(doc.elements) == before and Transaction.log == ROLLED_BACK
 
 
 @pytest.mark.parametrize("requested, fragment", [
@@ -367,14 +418,15 @@ def test_place_views_commit_centres_on_title_block(sheets, doc):
     assert first["kind"] == "viewport" and first["position_m"] == {
         "x": round(1.4 * 0.3048, 4), "y": round(1.0 * 0.3048, 4)}
     assert second["kind"] == "schedule" and second["position_m"] == {"x": 0.3048, "y": 0.6096}
+    assert first["anchor"] == "centre" and second["anchor"] == "top_left"
     assert count(doc, Viewport) == 1 and count(doc, ScheduleSheetInstance) == 1
-    assert Transaction.log == ["commit"]
+    assert Transaction.log == COMMITTED
 
 
 def test_place_views_dry_run_rolls_back(sheets, doc):
     result = sheets.place_views(doc, [{"sheet_number": "A100", "view": "Forro"}], commit=False)
     assert result["status"] == "dry_run" and "viewport_id" not in result["results"][0]
-    assert count(doc, Viewport) == 0 and Transaction.log == ["rollback"]
+    assert count(doc, Viewport) == 0 and Transaction.log == DRY_RUN
 
 
 def test_place_views_errors(sheets, doc):
@@ -418,7 +470,7 @@ def test_apply_template_by_view_type_dry_run(sheets, doc):
     result = sheets.apply_template(doc, "Forro Executivo", None, "ceilingplan", commit=False)
     assert result["status"] == "dry_run", result
     assert sorted(r["view"] for r in result["results"]) == ["Cobertura", "Forro"]
-    assert doc.ceiling.ViewTemplateId == INVALID and Transaction.log == ["rollback"]
+    assert doc.ceiling.ViewTemplateId == INVALID and Transaction.log == DRY_RUN
 
 
 def test_apply_template_errors_apply_nothing(sheets, doc):
@@ -507,3 +559,35 @@ def test_no_document_is_503(routes):
     handlers, _ = routes
     response = handlers["/create_sheets/"](None, SimpleNamespace(data={}))
     assert response["status"] == 503
+
+
+# ---- review fixes ----
+
+def test_sheet_anchor(sheets):
+    assert sheets.sheet_anchor(0, 0, 4, 2, "centre") == (2.0, 1.0)
+    assert sheets.sheet_anchor(0, 0, 4, 2, "top_left", 0.1) == (0.1, 1.9)
+
+
+def test_schedule_defaults_to_title_block_top_left(sheets, doc):
+    result = sheets.place_views(doc, [{"sheet_number": "A100", "view": "Portas"}], commit=True)
+    assert result["status"] == "success", result
+    placed = result["results"][0]
+    assert placed["kind"] == "schedule" and placed["anchor"] == "top_left"
+    assert placed["position_m"] == {"x": round(0.1 * 0.3048 + 0.02, 4),
+                                    "y": round(1.9 * 0.3048 - 0.02, 4)}
+
+
+def test_revit_warnings_are_returned_and_errors_roll_back(sheets, doc):
+    Transaction.failures = [("Warning", u"Vista fora da folha")]
+    result = sheets.place_views(doc, [{"sheet_number": "A100", "view": "Forro"}], commit=False)
+    assert result["status"] == "dry_run" and result["warnings"] == [u"Vista fora da folha"]
+    assert count(doc, Viewport) == 0 and Transaction.log == DRY_RUN
+
+    Transaction.log = []
+    Transaction.failures = [("Error", u"Não foi possível criar a folha")]
+    before = len(doc.elements)
+    result = sheets.create_sheets(doc, [{"number": "A101", "name": "X"}], None, commit=True)
+    assert result["status"] == "error" and result["applied"] == 0
+    assert result["errors"] == [{"error": u"Não foi possível criar a folha"}]
+    assert "did not commit" in result["error"]
+    assert len(doc.elements) == before and Transaction.log == ["rollback", "group.rollback"]

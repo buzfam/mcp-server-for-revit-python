@@ -9,6 +9,7 @@ from pyrevit import routes, DB
 import json
 import logging
 from .security import authorize_request
+from .transactions import Batch
 from .utils import normalize_string, element_id_from_int, element_id_value
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 MAX_ITEMS = 200
 FEET_PER_METER = 1.0 / 0.3048
 MAX_LISTED = 20
+# Gap between the title block border and a schedule placed by default (meters).
+SCHEDULE_MARGIN_M = 0.02
 
 
 # ---- pure helpers (no Revit API; checked by scripts/ironpython_check.py) ----
@@ -237,29 +240,50 @@ def _find_view(doc, by_name, name=None, view_id=None):
     return matches[0], None
 
 
-def _sheet_centre(doc, sheet):
-    """Centre of the title block on the sheet, else of the sheet outline (feet)."""
+def sheet_anchor(min_x, min_y, max_x, max_y, anchor, margin=0.0):
+    """Default point (same units as the box) for a view placed on a sheet.
+
+    "centre": middle of the box (viewports are positioned by their centre).
+    "top_left": top-left corner moved inside by margin (a schedule's insertion
+    point is its top-left corner, so centring it would push it off the sheet)."""
+    if anchor == "top_left":
+        return min_x + margin, max_y - margin
+    return (min_x + max_x) / 2.0, (min_y + max_y) / 2.0
+
+
+def _sheet_box(doc, sheet):
+    """(min_x, min_y, max_x, max_y) in feet of the title block, else of the sheet outline."""
     try:
         blocks = DB.FilteredElementCollector(doc, sheet.Id) \
             .OfCategory(DB.BuiltInCategory.OST_TitleBlocks).WhereElementIsNotElementType()
         for block in blocks:
             box = block.get_BoundingBox(sheet)
             if box is not None:
-                return DB.XYZ((box.Min.X + box.Max.X) / 2.0, (box.Min.Y + box.Max.Y) / 2.0, 0)
+                return box.Min.X, box.Min.Y, box.Max.X, box.Max.Y
     except Exception as error:
         logger.debug("Title block bounding box unavailable: %s", error)
     outline = sheet.Outline
-    return DB.XYZ((outline.Min.U + outline.Max.U) / 2.0, (outline.Min.V + outline.Max.V) / 2.0, 0)
+    return outline.Min.U, outline.Min.V, outline.Max.U, outline.Max.V
+
+
+def _default_point(doc, sheet, anchor):
+    min_x, min_y, max_x, max_y = _sheet_box(doc, sheet)
+    x, y = sheet_anchor(min_x, min_y, max_x, max_y, anchor, meters_to_feet(SCHEDULE_MARGIN_M))
+    return DB.XYZ(x, y, 0)
 
 
 def _run(doc, name, planned, apply_one, commit, total, noun):
-    """Apply every planned item in one transaction (rolled back on dry run or any error).
+    """Apply every planned item in one transaction (all or nothing).
 
-    apply_one(item) returns (result dict, error message or None).
+    apply_one(item) returns (result dict, error message or None). The
+    transaction runs in a TransactionGroup with a failures preprocessor: Revit
+    warnings are returned instead of opening dialogs (which would block the
+    request), errors roll back, and a dry run commits the transaction (so Revit
+    checks it) before the group is rolled back.
     """
     results, errors = [], []
-    transaction = DB.Transaction(doc, name)
-    transaction.Start()
+    batch = Batch(doc, name)
+    batch.start()
     try:
         for item in planned:
             try:
@@ -270,23 +294,23 @@ def _run(doc, name, planned, apply_one, commit, total, noun):
                 errors.append({"index": item["index"], "error": error})
             elif result is not None:
                 results.append(result)
-        if errors or not commit:
-            transaction.RollBack()
-        else:
-            status = transaction.Commit()
-            if status != DB.TransactionStatus.Committed:
-                return {"status": "error", "applied": 0, "errors": [],
-                        "error": "Revit did not commit the transaction ({})".format(status)}
+        if errors:
+            batch.rollback()
+        elif not batch.finish(commit):
+            return {"status": "error", "applied": 0,
+                    "errors": [{"error": e} for e in batch.errors],
+                    "warnings": batch.warnings,
+                    "error": "Revit did not commit the transaction ({}); nothing was "
+                             "applied".format(batch.status)}
     except Exception:
-        if transaction.HasStarted() and not transaction.HasEnded():
-            transaction.RollBack()
+        batch.abort()
         raise
 
     if errors:
         return {"status": "error",
                 "error": "{} of {} {} were rejected by Revit; nothing was applied".format(
                     len(errors), total, noun),
-                "applied": 0, "errors": errors}
+                "applied": 0, "errors": errors, "warnings": batch.warnings}
     if not commit:
         for result in results:
             for key in ("sheet_id", "viewport_id"):
@@ -294,8 +318,9 @@ def _run(doc, name, planned, apply_one, commit, total, noun):
         return {"status": "dry_run",
                 "message": "Dry run: {} {} are valid. Nothing was changed; call again "
                            "with dry_run=false to apply.".format(len(results), noun),
-                "applied": 0, "results": results}
-    return {"status": "success", "applied": len(results), "results": results}
+                "applied": 0, "results": results, "warnings": batch.warnings}
+    return {"status": "success", "applied": len(results), "results": results,
+            "warnings": batch.warnings}
 
 
 def _invalid(errors, total, noun):
@@ -381,10 +406,12 @@ def place_views(doc, items, commit):
 
     def apply_one(plan):
         sheet, view, item = plan["sheet"], plan["view"], plan["item"]
+        # Viewports are positioned by their centre; schedules by their top-left corner.
+        anchor = "top_left" if _is_schedule(view) else "centre"
         if item.get("x") is not None:
             point = DB.XYZ(meters_to_feet(item["x"]), meters_to_feet(item["y"]), 0)
         else:
-            point = _sheet_centre(doc, sheet)
+            point = _default_point(doc, sheet, anchor)
         if _is_schedule(view):
             placed = DB.ScheduleSheetInstance.Create(doc, sheet.Id, view.Id, point)
             kind = "schedule"
@@ -397,6 +424,7 @@ def place_views(doc, items, commit):
             return None, "Revit did not place the view"
         return {"index": plan["index"], "sheet_number": normalize_string(sheet.SheetNumber),
                 "view": element_name(view), "view_id": _id(view), "kind": kind,
+                "anchor": anchor,
                 "position_m": {"x": round(point.X / FEET_PER_METER, 4),
                                "y": round(point.Y / FEET_PER_METER, 4)},
                 "viewport_id": _id(placed)}, None

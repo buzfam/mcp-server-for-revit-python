@@ -83,7 +83,10 @@ item vencem os dois valores do lote.
 
 ### Regras
 - `Wall.Create(doc, Line, wallTypeId, levelId, alturaPés, 0, False, structural)`;
-  a linha fica na elevação do nível.
+  a linha fica na elevação do nível em coordenadas internas
+  (`Level.ProjectElevation`, helper `level_z`). `Level.Elevation` é medido a
+  partir da base de elevação (Ponto Base do Projeto ou Ponto de Levantamento) e
+  só é usado para ordenar níveis e comparar base/topo.
 - `location_line`: grava `WALL_KEY_REF_PARAM` (0–5) e reatribui
   `wall.Location.Curve = linha`, para que a referência escolhida fique sobre a
   linha pedida (mudar o parâmetro sozinho não move a parede).
@@ -128,16 +131,19 @@ item vencem os dois valores do lote.
 - `doc.Create.NewRoom(level, UV)`; nome e número via
   `room.get_Parameter(BuiltInParameter.ROOM_NAME/ROOM_NUMBER).Set(...)`
   (`room.Name` dá `AttributeError` no IronPython).
-- Fronteira: `SketchPlane.Create(doc, Plane.CreateByNormalAndOrigin(BasisZ, (0,0,elev)))`
+- Fronteira: `SketchPlane.Create(doc, Plane.CreateByNormalAndOrigin(BasisZ, (0,0,level_z)))`
   + `doc.Create.NewRoomBoundaryLines(sketch, CurveArray, vista)`; a vista é a
-  ativa se for planta do nível, senão a primeira planta (não modelo) do nível;
-  sem planta do nível → erro do item.
+  ativa se for planta de piso (`ViewType.FloorPlan`, não forro/área/estrutural,
+  não modelo) do nível, senão a primeira planta de piso do nível; sem planta de
+  piso do nível → erro do item. `GetRoomAtPoint` também usa `level_z`.
 - Depois de `doc.Regenerate()`, `room.Area == 0` → erro do item ("não está numa
   região fechada"), e o lote todo é desfeito. Área informada em m² com 2 casas.
 - Já existe ambiente no ponto (`doc.GetRoomAtPoint`) → erro do item.
 - Etiqueta: `doc.Create.NewRoomTag(LinkElementId(room.Id), UV, view.Id)` só se a
-  vista ativa for uma planta (não modelo) gerada pelo nível do ambiente; senão o
-  resultado traz `"tag": "skipped: ..."` (não é erro).
+  vista ativa for uma planta de piso (não modelo) gerada pelo nível do ambiente;
+  senão o resultado traz `"tag": "skipped: ..."` (não é erro). **Decisão:** se o
+  Revit recusar a etiqueta, o ambiente é criado mesmo assim e o resultado traz
+  `"tag": "failed: <mensagem>"` — a etiqueta é conveniência e não derruba o lote.
 
 ## place_hosted_families
 
@@ -151,7 +157,9 @@ Posição:
 - `wall_id` + `offset_m`: distância a partir do início da linha de localização da parede;
 - `point`: a parede mais próxima cuja linha de localização está a até 0,5 m
   (filtrada por `level`, se informado); a instância vai para o ponto mais
-  próximo sobre ela (`curve.Project`);
+  próximo sobre ela (`curve.Project`). Sem `level`, se paredes de **mais de um
+  nível** estiverem à mesma distância (paredes empilhadas em pavimentos), é erro
+  do item pedindo `level` ou `wall_id` (não escolhe um pavimento ao acaso);
 - `wall_id` + `point`: aquela parede, ponto mais próximo (até 0,5 m).
 
 ### Requisição para a rota
@@ -187,6 +195,10 @@ Sem família de porta/janela carregada (era o caso do modelo de teste):
   symbol, wall, level, StructuralType.NonStructural)` com o nível base da parede.
 - `instance.Host is None` → "família não é hospedada em parede" (erro do item).
 - `sill_height_m` → `INSTANCE_SILL_HEIGHT_PARAM`; sem parâmetro editável → erro.
+  Sem `sill_height_m` nada é gravado (a família mantém o peitoril padrão); o
+  resultado traz o `sill_height_m` que o Revit aplicou, para que um peitoril 0
+  inesperado fique visível. O ponto passado ao Revit está na base da parede
+  (Z da linha de localização). O resultado traz também o `level` da parede.
 - `flip_hand`/`flip_facing` → `flipHand()`/`flipFacing()` se `CanFlipHand`/`CanFlipFacing`.
 - `offset_m` maior que o comprimento da parede → erro do item. Abertura que não
   cabe na parede é recusada pelo Revit → rollback com o texto do erro.
@@ -230,3 +242,8 @@ Sem família de porta/janela carregada (era o caso do modelo de teste):
 - [ ] Porta por `wall_id` + `offset_m` e janela por `point` com `sill_height_m`
 - [ ] Abertura maior que a parede → erro do Revit vira rollback, sem diálogo travado
 - [ ] Usuário recusa o diálogo → 403, nada criado
+- [ ] Modelo com Elevação Base = Ponto de Levantamento e cota ≠ 0: paredes, linhas separadoras e ambientes ficam no nível certo (`ProjectElevation`)
+- [ ] Janela sem `sill_height_m` mantém o peitoril padrão da família (conferir o `sill_height_m` devolvido)
+- [ ] `point` sem `level` em projeto com paredes empilhadas em dois pavimentos → erro pedindo `level`/`wall_id`
+- [ ] Vista ativa = planta de forro do nível: etiqueta do ambiente é pulada e separadoras vão para a planta de piso
+- [ ] Etiqueta de ambiente recusada pelo Revit → ambiente criado, `tag: failed: ...`

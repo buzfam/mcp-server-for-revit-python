@@ -69,6 +69,17 @@ def header_row_index(first_rows, headings):
     return None
 
 
+def visible_columns(hidden_flags, column_count):
+    """Indexes of the body columns to read.
+
+    hidden_flags: ScheduleField.IsHidden of every field, in field order. When
+    the body has one column per field (hidden ones included), the hidden
+    columns are dropped by index; otherwise every column is visible."""
+    if column_count == len(hidden_flags) and any(hidden_flags):
+        return [index for index, hidden in enumerate(hidden_flags) if not hidden]
+    return list(range(column_count))
+
+
 def room_status(has_location, area):
     """"unplaced" (no location), "not_enclosed" (placed, zero area) or "placed"."""
     if not has_location:
@@ -166,18 +177,17 @@ def _find_schedule(doc, schedule_id, schedule_name):
     return None, u"Schedule '{}' not found".format(normalize_string(schedule_name)), 404
 
 
-def _visible_headings(schedule):
-    headings = []
+def _schedule_fields(schedule):
+    """[(heading, is_hidden)] of every field, in field (column) order."""
+    fields = []
     try:
         definition = schedule.Definition
         for index in range(definition.GetFieldCount()):
             field = definition.GetField(index)
-            if field.IsHidden:
-                continue
-            headings.append(text(field.ColumnHeading))
+            fields.append((text(field.ColumnHeading), bool(field.IsHidden)))
     except Exception as e:
         logger.warning("Could not read schedule fields: %s", e)
-    return headings
+    return fields
 
 
 def read_schedule(schedule, limit):
@@ -189,23 +199,24 @@ def read_schedule(schedule, limit):
     """
     section = schedule.GetTableData().GetSectionData(DB.SectionType.Body)
     row_count = section.NumberOfRows
-    column_count = section.NumberOfColumns
+    fields = _schedule_fields(schedule)
+    indexes = visible_columns([hidden for _, hidden in fields], section.NumberOfColumns)
+    headings = [heading for heading, hidden in fields if not hidden]
 
     def cells(row):
         return [text(schedule.GetCellText(DB.SectionType.Body, row, column))
-                for column in range(column_count)]
+                for column in indexes]
 
-    headings = _visible_headings(schedule)
     first_rows = [cells(row) for row in range(min(row_count, 5))]
     header_index = header_row_index(first_rows, headings)
     if header_index is not None:
         columns = first_rows[header_index]
         start = header_index + 1
-    elif len(headings) == column_count:
+    elif len(headings) == len(indexes):
         columns = headings
         start = 0
     else:
-        columns = [u"Column {}".format(index + 1) for index in range(column_count)]
+        columns = [u"Column {}".format(index + 1) for index in range(len(indexes))]
         start = 0
 
     rows = []

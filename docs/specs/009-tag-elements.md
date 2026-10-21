@@ -62,9 +62,16 @@ inexistente, vista que não aceita etiquetas, nenhum tipo de etiqueta carregado,
 - `authorize_request(action=None)` primeiro; o diálogo de aprovação
   (`"Tag elements in a view"`) só aparece quando `dry_run=false` e há algo a
   etiquetar.
-- Uma transação (`"MCP: tag elements"`) por requisição. O dry run cria as
-  etiquetas de verdade e faz `RollBack`, então as contagens refletem o que o
-  Revit aceita.
+- Uma transação (`"MCP: tag elements"`) por requisição, dentro de um
+  `TransactionGroup` com `IFailuresPreprocessor` (`revit_mcp/transactions.py`).
+  O dry run cria as etiquetas de verdade, faz `Commit` da transação (o Revit
+  processa as falhas) e desfaz o grupo, então as contagens refletem o que o
+  Revit aceita. Avisos do Revit voltam em `warnings` (até 50) em vez de abrir
+  diálogos que travariam a requisição; erros do Revit no commit desfazem tudo
+  e voltam em `revit_errors` (HTTP 500).
+- `view_name`: compara com todas as vistas não modelo. Nome repetido (ex.:
+  planta de piso e de forro "Térreo"): se só uma aceita etiquetas, usa essa;
+  senão → 400 listando os tipos de vista e pedindo `view_id`.
 - **Sucesso parcial:** um elemento que o Revit recusa vai para `failed` e os
   outros são etiquetados (diferente do `bulk_set_parameters`, que é tudo ou
   nada). Se nenhum for etiquetado, a transação é desfeita.
@@ -76,8 +83,10 @@ inexistente, vista que não aceita etiquetas, nenhum tipo de etiqueta carregado,
 - Áreas: `NewAreaTag`, só em planta de área.
 - Demais categorias: `IndependentTag.Create` no ponto de locação, no meio da
   curva de locação ou no centro da caixa envolvente.
-- Tipo de etiqueta: o pedido pelo nome; senão o padrão do projeto para a
-  categoria de etiqueta (`GetDefaultFamilyTypeId`); senão o primeiro carregado.
+- Tipo de etiqueta: o pedido pelo nome, procurado em **todas** as categorias
+  de etiqueta candidatas (ex.: etiqueta de porta e multicategoria); senão o
+  padrão do projeto para a primeira categoria de etiqueta com tipos carregados
+  (`GetDefaultFamilyTypeId`); senão o primeiro carregado dela.
   Se a categoria não tem etiqueta própria carregada, usa etiqueta multicategoria.
 - `failed` lista no máximo 50 itens; `failed_count` tem o total.
 
@@ -107,5 +116,8 @@ inexistente, vista que não aceita etiquetas, nenhum tipo de etiqueta carregado,
 - [ ] Segunda execução com `skip_tagged=true` não duplica etiquetas.
 - [ ] Ambientes (planta) e áreas (planta de área) com nome em português.
 - [ ] `tag_type` por nome em português; tipo inexistente devolve `available`.
+- [ ] `tag_type` de etiqueta multicategoria para portas (com etiqueta de porta também carregada).
+- [ ] `view_name` "Térreo" com planta de piso e de forro de mesmo nome → erro pedindo `view_id`.
+- [ ] Aviso do Revit ao etiquetar volta em `warnings`, sem diálogo travando o pedido.
 - [ ] Categoria sem etiqueta carregada → erro claro.
 - [ ] Revit 2024 e uma versão 2025+ (`GetTaggedLocalElementIds`, `ElementId` Int64).

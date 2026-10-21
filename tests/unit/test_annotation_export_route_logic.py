@@ -9,21 +9,50 @@ from types import SimpleNamespace
 
 import pytest
 
-MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.annotation", "revit_mcp.exports")
+MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.transactions",
+           "revit_mcp.annotation", "revit_mcp.exports")
+
+
+class Accessor:
+    def __init__(self, failures):
+        self.failures = failures
+
+    def GetFailureMessages(self):
+        return [SimpleNamespace(GetSeverity=lambda s=s: s, GetDescriptionText=lambda t=t: t)
+                for s, t in self.failures]
+
+    def DeleteWarning(self, message):
+        pass
 
 
 class Transaction:
     log = []
     commit_status = "Committed"
+    failures = []   # (severity, text) posted on Commit
 
     def __init__(self, doc, name):
         self.name, self.started, self.ended = name, False, False
+        self.preprocessor = None
+        self.options = SimpleNamespace(
+            SetFailuresPreprocessor=lambda p: setattr(self, "preprocessor", p),
+            SetClearAfterRollback=lambda value: None)
+
+    def GetFailureHandlingOptions(self):
+        return self.options
+
+    def SetFailureHandlingOptions(self, options):
+        pass
 
     def Start(self):
         self.started = True
 
     def Commit(self):
         self.ended = True
+        if Transaction.failures and self.preprocessor is not None:
+            result = self.preprocessor.PreprocessFailures(Accessor(Transaction.failures))
+            if result == "ProceedWithRollBack":
+                Transaction.log.append("rollback")
+                return "RolledBack"
         Transaction.log.append("commit")
         return Transaction.commit_status
 
@@ -38,6 +67,16 @@ class Transaction:
         return self.ended
 
 
+class TransactionGroup(Transaction):
+    def Assimilate(self):
+        self.ended = True
+        Transaction.log.append("group.assimilate")
+
+    def RollBack(self):
+        self.ended = True
+        Transaction.log.append("group.rollback")
+
+
 def eid(value):
     return SimpleNamespace(Value=value)
 
@@ -48,8 +87,12 @@ INVALID = eid(-1)
 @pytest.fixture
 def revit_modules(monkeypatch):
     DB = SimpleNamespace(
-        Transaction=Transaction,
+        Transaction=Transaction, TransactionGroup=TransactionGroup,
         TransactionStatus=SimpleNamespace(Committed="Committed"),
+        IFailuresPreprocessor=object,
+        FailureSeverity=SimpleNamespace(Warning="Warning", Error="Error"),
+        FailureProcessingResult=SimpleNamespace(Continue="Continue",
+                                                ProceedWithRollBack="ProceedWithRollBack"),
         ElementId=SimpleNamespace(InvalidElementId=INVALID),
         SectionType=SimpleNamespace(Body="Body"),
         Element=SimpleNamespace(Name=SimpleNamespace(GetValue=lambda e: e.name)),
@@ -68,6 +111,7 @@ def revit_modules(monkeypatch):
     exports = importlib.import_module("revit_mcp.exports")
     Transaction.log = []
     Transaction.commit_status = "Committed"
+    Transaction.failures = []
     yield annotation, exports
     for name in MODULES:
         sys.modules.pop(name, None)
@@ -140,33 +184,83 @@ def _creator(refuse=()):
 
 def test_run_tagging_commits_and_keeps_partial_success(revit_modules):
     annotation, _ = revit_modules
-    tagged, tag_ids, failed, error = annotation.run_tagging(
-        None, [(1, 1), (2, 2), (3, 3)], _creator(refuse=(2,)), commit=True)
-    assert tagged == [1, 3] and tag_ids == [1001, 1003] and error is None
-    assert failed == [{"element_id": 2, "error": u"Não foi possível etiquetar"}]
-    assert Transaction.log == ["commit"]
+    out = annotation.run_tagging(None, [(1, 1), (2, 2), (3, 3)], _creator(refuse=(2,)), commit=True)
+    assert out["tagged"] == [1, 3] and out["tag_ids"] == [1001, 1003] and out["error"] is None
+    assert out["failed"] == [{"element_id": 2, "error": u"Não foi possível etiquetar"}]
+    assert Transaction.log == ["commit", "group.assimilate"]
 
 
-def test_run_tagging_dry_run_rolls_back(revit_modules):
+def test_run_tagging_dry_run_commits_then_rolls_back_the_group(revit_modules):
     annotation, _ = revit_modules
-    tagged, tag_ids, failed, error = annotation.run_tagging(
-        None, [(1, 1)], _creator(), commit=False)
-    assert tagged == [1] and tag_ids == [] and failed == []
-    assert Transaction.log == ["rollback"]
+    out = annotation.run_tagging(None, [(1, 1)], _creator(), commit=False)
+    assert out["tagged"] == [1] and out["tag_ids"] == [] and out["failed"] == []
+    assert Transaction.log == ["commit", "group.rollback"]
 
 
 def test_run_tagging_nothing_tagged_rolls_back(revit_modules):
     annotation, _ = revit_modules
-    tagged, _, failed, _ = annotation.run_tagging(None, [(1, 1)], _creator(refuse=(1,)), True)
-    assert tagged == [] and len(failed) == 1
-    assert Transaction.log == ["rollback"]
+    out = annotation.run_tagging(None, [(1, 1)], _creator(refuse=(1,)), True)
+    assert out["tagged"] == [] and len(out["failed"]) == 1
+    assert Transaction.log == ["rollback", "group.rollback"]
 
 
 def test_run_tagging_reports_failed_commit(revit_modules):
     annotation, _ = revit_modules
     Transaction.commit_status = "RolledBack"
-    tagged, tag_ids, _, error = annotation.run_tagging(None, [(1, 1)], _creator(), True)
-    assert tagged == [] and tag_ids == [] and "did not commit" in error
+    out = annotation.run_tagging(None, [(1, 1)], _creator(), True)
+    assert out["tagged"] == [] and out["tag_ids"] == [] and "did not commit" in out["error"]
+    assert Transaction.log == ["commit", "group.rollback"]
+
+
+def test_run_tagging_collects_warnings_and_revit_errors(revit_modules):
+    annotation, _ = revit_modules
+    Transaction.failures = [("Warning", u"Etiqueta sobreposta")]
+    out = annotation.run_tagging(None, [(1, 1)], _creator(), commit=True)
+    assert out["error"] is None and out["warnings"] == [u"Etiqueta sobreposta"]
+    assert Transaction.log == ["commit", "group.assimilate"]
+
+    Transaction.log = []
+    Transaction.failures = [("Error", u"Referência inválida")]
+    out = annotation.run_tagging(None, [(1, 1)], _creator(), commit=False)
+    assert out["tagged"] == [] and "did not commit" in out["error"]
+    assert out["revit_errors"] == [u"Referência inválida"]
+    assert Transaction.log == ["rollback", "group.rollback"]
+
+
+def _view(name, view_type="FloorPlan"):
+    return SimpleNamespace(name=name, ViewType=view_type)
+
+
+def test_pick_named_view(revit_modules):
+    annotation, _ = revit_modules
+    plan, ceiling, sheet = _view(u"Térreo"), _view(u"Térreo", "CeilingPlan"), \
+        _view(u"Térreo", "DrawingSheet")
+    assert annotation.pick_named_view([plan], u"Térreo") == (plan, None)
+    assert annotation.pick_named_view([plan, sheet], u"Térreo") == (plan, None)
+    view, error = annotation.pick_named_view([plan, ceiling, sheet], u"Térreo")
+    assert view is None and "2 views named" in error
+    assert "CeilingPlan, FloorPlan" in error and "view_id" in error
+    view, error = annotation.pick_named_view([], "Nada")
+    assert view is None and "not found" in error
+
+
+class _Symbol:
+    def __init__(self, family, name):
+        self.FamilyName, self.name = family, name
+        self.Id = eid(hash((family, name)) % 1000)
+
+
+def test_pick_tag_type_searches_every_tag_category(revit_modules):
+    annotation, _ = revit_modules
+    door_tag = _Symbol("Etiqueta de porta", u"Padrão")
+    multi = _Symbol("Etiqueta multicategoria", "Marca")
+    doc = SimpleNamespace(GetDefaultFamilyTypeId=lambda category_id: INVALID)
+    annotation.DB.ElementId = lambda value: value
+    annotation.DB.ElementId.InvalidElementId = INVALID
+    tag_types = [("OST_DoorTags", [door_tag]), ("OST_MultiCategoryTags", [multi])]
+    assert annotation._pick_tag_type(doc, tag_types, "Etiqueta multicategoria: Marca") is multi
+    assert annotation._pick_tag_type(doc, tag_types, None) is door_tag
+    assert annotation._pick_tag_type(doc, tag_types, "Outra") is None
 
 
 # ---- exports: CSV ----
@@ -246,6 +340,31 @@ def test_read_schedule_generic_columns(revit_modules):
     schedule = FakeSchedule([[u"a", u"b", u"c"]], headings=[u"X"])
     columns, rows, _, _ = exports.read_schedule(schedule, limit=200)
     assert columns == [u"Column 1", u"Column 2", u"Column 3"] and rows == [[u"a", u"b", u"c"]]
+
+
+def test_visible_columns(revit_modules):
+    _, exports = revit_modules
+    assert exports.visible_columns([False, True, False], 3) == [0, 2]
+    assert exports.visible_columns([False, True, False], 2) == [0, 1]
+    assert exports.visible_columns([False, False], 2) == [0, 1]
+    assert exports.visible_columns([], 3) == [0, 1, 2]
+
+
+def test_read_schedule_drops_hidden_column_by_index(revit_modules):
+    _, exports = revit_modules
+    schedule = FakeSchedule([
+        [u"Marca", u"Oculto", u"Largura"],
+        [u"P1", u"x", u"80"],
+        [u"P2", u"y", u"90"],
+    ], headings=[u"Marca", u"Oculto", u"Largura"], hidden=(u"Oculto",))
+    columns, rows, body_rows, _ = exports.read_schedule(schedule, limit=200)
+    assert columns == [u"Marca", u"Largura"]
+    assert rows == [[u"P1", u"80"], [u"P2", u"90"]] and body_rows == 2
+
+    no_heading = FakeSchedule([[u"P1", u"x", u"80"]], headings=[u"Marca", u"Oculto", u"Largura"],
+                              hidden=(u"Oculto",))
+    columns, rows, _, _ = exports.read_schedule(no_heading, limit=200)
+    assert columns == [u"Marca", u"Largura"] and rows == [[u"P1", u"80"]]
 
 
 # ---- exports: rooms ----

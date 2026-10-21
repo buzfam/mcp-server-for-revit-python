@@ -61,7 +61,7 @@ def register_export_tools(mcp, revit_get, revit_post):
             data["schedule_id"] = schedule_id
         if ctx:
             await ctx.info("Reading schedule...")
-        response = await revit_post("/export_schedule/", data, ctx, timeout=60.0)
+        response = await revit_post("/export_schedule/", data, ctx, timeout=120.0)
         return format_response(response)
 
     @mcp.tool()
@@ -99,5 +99,5 @@ def register_export_tools(mcp, revit_get, revit_post):
             data["level"] = level
         if ctx:
             await ctx.info("Reading rooms...")
-        response = await revit_post("/export_rooms/", data, ctx, timeout=60.0)
+        response = await revit_post("/export_rooms/", data, ctx, timeout=120.0)
         return format_response(response)
