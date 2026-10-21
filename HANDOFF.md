@@ -41,7 +41,7 @@ _Última atualização: 2026-10-20_
   confirmados com o escritório**.
 - **2026-10-21 (3): 6 tools novas (44 no total), não validadas no Revit**: fases
   (016), PDF nativo (017), renumeração (018), pisos/forros pelos ambientes (020);
-  CSV (019) em revisão. **Toda tool desta leva e das anteriores (007–015) passou
+  CSV (019) integrado depois da revisão (45 tools). **Toda tool desta leva e das anteriores (007–015) passou
   por revisão de outro agente** e as correções foram aplicadas (ver CHANGELOG).
   `revit_mcp/transactions.py` (`Batch`) é o padrão para escrita: grupo de
   transação, avisos na resposta, dry run que roda e desfaz. `startup.py` registra
@@ -102,6 +102,10 @@ _Última atualização: 2026-10-20_
          `emissao.json`, substituição com backup, arquivo aberto no Acrobat → 423),
          renumerar portas por ambiente e trocar A-101 ↔ A-102, pisos/forros pelos
          ambientes (altura do forro, fase). Checklists no fim de cada spec.
+   - [ ] **Painel Conferir (sem IA)**: os 4 botões com o agente desligado; Emitir
+         PDF com arquivo aberto no Acrobat; Auditar template no `.rte`.
+   - [ ] **CSV (019)**: `DecimalSymbol` em Revit pt-BR é "Comma"? planilha do
+         Excel pt-BR com `;`; `file_path` recusado no modo remoto.
    - [ ] **Botão Bridge > Histórico** mostra permitidos/recusados/automáticos.
    - [ ] Itens ainda abertos das specs 001–004 e 006 (checklists em cada spec):
          seleção grande truncada, parâmetro compartilhado, Sim/Não, `"110 cm"`,
@@ -166,6 +170,7 @@ Documento completo: `buzfam/cvarq-skills` → `docs/propostas/2026-10-21-mcps-pl
 | 2026-10-20 | Token remoto separado do pareamento; TLS opcional com aviso | Revogar acesso pela rede sem quebrar o local; facilitar o piloto em LAN |
 | 2026-10-20 | Gerenciar token e servidor remoto pelo ribbon (botão Remoto) | O usuário instala via pyRevit e não terá terminal no PC |
 | 2026-10-20 | Servidor remoto continua rodando se o Revit fechar | Simplicidade; parar é explícito pelo botão |
+| 2026-10-21 | Botões sem IA (painel Conferir) ficam neste repo, não no `pyrevit-cvarq-plugins` | Reaproveitam o código das rotas (`revit_mcp/`); mover exigiria duplicar ou empacotar `revit_mcp`. Reavaliar se o plugin irmão precisar deles sem o MCP instalado |
 | 2026-10-21 | `export_sheets_pdf` usa o exportador nativo do Revit (`Document.Export` + `PDFExportOptions`, Revit 2022+) | Preferência do usuário; dispensa impressora PDF virtual |
 
 ## Pendências e riscos

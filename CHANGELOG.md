@@ -37,6 +37,20 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **Painel MCP > Conferir, sem IA** (proposta B1): **Checar pranchas** (lê
+  `%APPDATA%\RevitMCPPython\checklists_pranchas.json`, criado no primeiro uso a
+  partir de `config/checklists_pranchas.exemplo.json`, então o **Atualizar** não
+  apaga os checklists do escritório; Shift+clique escolhe outro JSON), **Checar materiais** (Shift+clique:
+  só a vista ativa), **Emitir PDF** (prévia, confirmação, substituição com backup, registro no Histórico)
+  e **Auditar template** (relatório + JSON salvo ao lado do modelo). Usam o mesmo
+  código das tools do MCP e funcionam com o agente desligado.
+- `import_parameters_from_csv` (spec 019, 45 tools): planilha → parâmetros por
+  `element_id` ou número do ambiente, via `bulk_set_parameters`. `file_path` só lê
+  `.csv` da pasta `~/Documents/RevitMCP/Importar` (ou `REVIT_MCP_IMPORT_DIR`) e é
+  desligado no modo remoto; erros não ecoam o conteúdo das células.
+- `bulk_set_parameters`: mudanças repetidas no mesmo alvo são unidas (valores
+  diferentes = erro), `normalize_numbers` ajusta "2,40"/"2.40" ao símbolo decimal
+  do projeto só em parâmetros numéricos, e vazio em parâmetro não-texto vira aviso.
 - **6 tools novas (44 no total)**, todas revisadas por um segundo agente antes do commit:
   - `phases_report` e `set_element_phases` (spec 016): fases, filtros de fase,
     contagem por fase de criação/demolição; mudança de fase em lote para reforma.

@@ -24,7 +24,7 @@ relatos, só **lê** o modelo. O diferencial deste fork é:
 
 | Área | Upstream | Fork |
 |---|---|---|
-| Tools | 20 | 44 (+ specs 001–004 e 007–020: seleção, parâmetros, saúde, folhas, templates, tags, exportação, modelagem, auditoria, conferências, quantitativos, fases, PDF, renumeração, pisos e forros) |
+| Tools | 20 | 45 (+ specs 001–004 e 007–020: seleção, parâmetros, saúde, folhas, templates, tags, exportação, modelagem, auditoria, conferências, quantitativos, fases, PDF, renumeração, pisos e forros) |
 | Guia para agentes | — | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/` |
 | Acompanhamento | — | `HANDOFF.md`, `CHANGELOG.md`, `docs/specs/` |
 | `.gitignore` | ignora `CLAUDE.md` | `CLAUDE.md` versionado |
@@ -56,7 +56,7 @@ parâmetros em massa, saúde do modelo, tags, templates). Status em `docs/specs/
 | 016 | `phases_report` / `set_element_phases` (feito) | leitura + escrita | Existente, demolir e construir em reforma |
 | 017 | `export_sheets_pdf` (feito) | arquivo | Emissão em PDF com nome e manifesto |
 | 018 | `renumber_elements` (feito) | escrita | Numeração de portas, janelas, ambientes e folhas |
-| 019 | `import_parameters_from_csv` (em revisão) | escrita | Planilha → parâmetros |
+| 019 | `import_parameters_from_csv` (feito) | escrita | Planilha → parâmetros |
 | 020 | `create_floors_from_rooms` / `create_ceilings_from_rooms` (feito) | escrita | Piso e forro modelados para quantitativos |
 | 006 | **Acesso pela rede direto** (feito) | transporte | Agente em outra máquina controla o Revit pelo IP do PC ([guia](docs/acesso-remoto.md)) |
 | 005 | **Fábrica**: hub central + agentes nos PCs | arquitetura | Vários PCs num ponto só, com aprovação e auditoria centrais |
