@@ -9,6 +9,12 @@
 > do diálogo. Sem cabeçalhos, a rota não vê `Origin`; a proteção contra navegador
 > passa a ser o próprio segredo. O texto abaixo sobre "headers" vale para versões
 > do pyRevit que os exponham.
+>
+> **Aprovação por sessão:** o diálogo de revisão oferece "Permitir tudo até fechar o
+> Revit". Escolhida no próprio Revit, a opção vale só na memória do processo e
+> dispensa o diálogo para alterações e Python, mas nunca dispensa o pareamento nem o
+> token remoto. Desliga em *Connected > Voltar a pedir aprovação*, ao desconectar ou
+> ao fechar o Revit.
 
 # Security boundaries and reporting
 

@@ -33,6 +33,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- Diálogo de aprovação com **"Permitir tudo até fechar o Revit"**: depois disso
+  as alterações e o Python rodam sem diálogo até o Revit fechar (fica só na
+  memória). Só pode ser ligado no próprio diálogo; desliga em
+  **Connected > Voltar a pedir aprovação** ou ao desconectar.
 - Botão **MCP > Update > Atualizar**: confere se há versão nova no git, mostra
   os commits, atualiza a extensão, reinicia o servidor remoto (se estiver
   ligado) e recarrega o pyRevit. Sem terminal e sem passar por pyRevit > Extensions.

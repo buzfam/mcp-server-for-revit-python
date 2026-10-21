@@ -169,6 +169,17 @@ def body_token_pairing():
         pairing.get_token = original
 
 
+def approval_helpers():
+    from revit_mcp import approval
+    assert approval.decision(approval.ALLOW_SESSION) == (True, True)
+    assert approval.decision(None) == (False, False)
+    assert not approval.is_auto_approved()
+    approval.set_auto_approved(True)  # real .NET AppDomain under ipy
+    assert approval.is_auto_approved()
+    approval.set_auto_approved(False)
+    assert not approval.is_auto_approved()
+
+
 def self_update_helpers():
     from revit_mcp import self_update
     assert self_update.commit_lines([u"feat: \u00e1\nbody"]) == u"\u2022 feat: \u00e1"
@@ -201,6 +212,7 @@ check("remote_token DPAPI round trip", remote_token_dpapi)
 check("parameters helpers", parameter_helpers)
 check("health helpers", health_helpers)
 check("body token pairing", body_token_pairing)
+check("approval helpers", approval_helpers)
 check("self_update helpers", self_update_helpers)
 check("utils unicode", utils_unicode)
 

@@ -11,11 +11,13 @@ from pyrevit import forms, script
 extension_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 if extension_root not in sys.path:
     sys.path.insert(0, extension_root)
+from revit_mcp import approval
 from revit_mcp.pairing import PairingError, disable_pairing, enable_pairing, is_paired
 
 TITLE = "Revit MCP"
 DISCONNECT_OPTION = u"Desconectar"
 ROTATE_OPTION = u"Trocar o segredo"
+ASK_AGAIN_OPTION = u"Voltar a pedir aprovação"
 
 
 def _state(paired):
@@ -70,13 +72,24 @@ def _connect():
 
 
 def _manage():
+    auto = approval.is_auto_approved()
+    options = [DISCONNECT_OPTION, ROTATE_OPTION]
+    if auto:
+        options.insert(0, ASK_AGAIN_OPTION)
     choice = forms.alert(
         u"Connected: clientes MCP deste usuário do Windows podem acessar este Revit.",
-        sub_msg=u"Desconectar recusa os próximos pedidos (uma operação em andamento "
+        sub_msg=(u"Aprovação automática: LIGADA até fechar o Revit. Alterações e Python "
+                 u"rodam sem diálogo.\n\n" if auto else
+                 u"Aprovação: cada alteração abre um diálogo aqui no Revit.\n\n") +
+                u"Desconectar recusa os próximos pedidos (uma operação em andamento "
                 u"ainda pode terminar). Trocar o segredo invalida o antigo; o servidor "
                 u"remoto continua funcionando sem reiniciar.",
-        title=TITLE, options=[DISCONNECT_OPTION, ROTATE_OPTION])
-    if choice == DISCONNECT_OPTION:
+        title=TITLE, options=options)
+    if choice == ASK_AGAIN_OPTION:
+        approval.set_auto_approved(False)
+        forms.alert(u"Pronto: cada alteração volta a pedir aprovação.", title=TITLE)
+    elif choice == DISCONNECT_OPTION:
+        approval.set_auto_approved(False)
         disable_pairing()
         forms.alert(u"Disconnected. Novos pedidos do MCP serão recusados.", title=TITLE)
     elif choice == ROTATE_OPTION:

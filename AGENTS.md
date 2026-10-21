@@ -60,6 +60,9 @@ Baseline em 2026-10-20 (macOS): `97 passed, 9 skipped`; manifest com 20 tools.
    - Só leitura: `authorize_request(request, action=None)`.
    - Altera o modelo, arquivos ou executa código: `action="<verbo legível>"`,
      que abre o diálogo de aprovação com o payload. Nunca remova esse diálogo.
+   - Exceção decidida pelo usuário (2026-10-20): no próprio diálogo, quem está no
+     PC pode escolher **"Permitir tudo até fechar o Revit"** (`revit_mcp/approval.py`,
+     só na memória do Revit). Nenhuma rota, tool ou cliente remoto pode ligar isso.
 3. **Alterações no modelo dentro de `DB.Transaction(doc, "<nome>")`**, uma por
    requisição (em lote: uma transação para o lote todo, não uma por elemento).
 4. **Tool nova = 6 lugares** (use a skill `add-mcp-tool`):

@@ -2,6 +2,7 @@
 """Authentication and in-Revit review for bridge requests."""
 import json
 from pyrevit import routes
+from . import approval
 from .pairing import AUTH_FIELD, validate_request
 
 _TOKEN_ATTRIBUTE = "_revit_mcp_body_token"
@@ -77,6 +78,9 @@ def authorize_request(request, action=None):
     if not validate_request(request.headers, body_token):
         return routes.make_response(data={"error": "Bridge is disconnected or pairing is invalid."}, status=401)
     if action:
+        if approval.is_auto_approved():
+            # The user chose "allow everything until Revit closes" in this dialog.
+            return None
         from pyrevit import forms
         try:
             data = json.loads(request.data) if isinstance(request.data, str) else request.data
@@ -86,7 +90,11 @@ def authorize_request(request, action=None):
         warning = "An MCP client requests: {}.\nReview the full request below before allowing it.".format(action)
         if action == "Execute Python code":
             warning += "\nThis code is NOT sandboxed. It can access files, network services and any data available to your Windows account."
-        if not forms.alert(warning, sub_msg=preview, title="Revit MCP request review",
-                           ok=False, yes=True, no=True, warn_icon=True):
+        choice = forms.alert(warning, sub_msg=preview, title="Revit MCP request review",
+                             options=approval.OPTIONS, warn_icon=True)
+        allowed, whole_session = approval.decision(choice)
+        if whole_session:
+            approval.set_auto_approved(True)
+        if not allowed:
             return routes.make_response(data={"error": "The user declined the request in Revit."}, status=403)
     return None

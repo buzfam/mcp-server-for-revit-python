@@ -66,7 +66,7 @@ async def test_optional_http_modes_reject_unpaired_and_browser_calls(paired_user
 
 @pytest.fixture
 def route_security(monkeypatch):
-    alert = Mock(return_value=False)
+    alert = Mock(return_value=None)  # dialog closed = declined
     routes = SimpleNamespace(make_response=lambda data, status=200: SimpleNamespace(data=data, status=status))
     monkeypatch.setitem(sys.modules, "pyrevit", SimpleNamespace(routes=routes, forms=SimpleNamespace(alert=alert)))
     spec = importlib.util.spec_from_file_location("revit_mcp._tested_security", ROOT / "revit_mcp/security.py")
@@ -89,8 +89,10 @@ def test_revit_review_decline_and_accept_show_request(route_security, paired_use
     assert security.authorize_request(request, "Execute Python code").status == 403
     assert "NOT sandboxed" in alert.call_args.args[0]
     assert "review me" in alert.call_args.kwargs["sub_msg"]
-    assert alert.call_args.kwargs["ok"] is False
-    alert.return_value = True
+    assert alert.call_args.kwargs["options"] == ["Permitir", u"Permitir tudo at\u00e9 fechar o Revit", "Recusar"]
+    alert.return_value = "Recusar"
+    assert security.authorize_request(request, "Execute Python code").status == 403
+    alert.return_value = "Permitir"
     assert security.authorize_request(request, "Execute Python code") is None
     request.data = "{invalid"
     assert security.authorize_request(request, "Execute Python code").status == 400
@@ -123,7 +125,7 @@ def test_route_accepts_body_token_and_strips_it_before_review(route_security, fa
     security, _, alert = route_security
     payload = pairing.authorization_body({"code": "print('review me')"})
     request = SimpleNamespace(data=json.dumps(payload) if as_json_text else payload, headers={})
-    alert.return_value = True
+    alert.return_value = "Permitir"
     assert security.authorize_request(request, "Execute Python code") is None
     assert request.data == {"code": "print('review me')"}
     assert fake_pairing not in alert.call_args.kwargs["sub_msg"]
@@ -134,7 +136,7 @@ def test_route_authorizes_twice_with_one_body_token(route_security, fake_pairing
     security, _, alert = route_security
     request = SimpleNamespace(data=pairing.authorization_body({"dry_run": False}), headers={})
     assert security.authorize_request(request) is None
-    alert.return_value = True
+    alert.return_value = "Permitir"
     assert security.authorize_request(request, "Set element parameters") is None
     assert request.data == {"dry_run": False}
 
@@ -147,9 +149,35 @@ def test_review_preview_handles_accents_and_nesting(route_security, fake_pairing
     assert u"Coment\u00e1rios" in preview
     assert json.loads(preview) == data  # still valid JSON for the reviewer
     request = SimpleNamespace(data=pairing.authorization_body(data), headers={})
-    alert.return_value = True
+    alert.return_value = "Permitir"
     assert security.authorize_request(request, "Set element parameters") is None
     assert u"Coment\u00e1rios" in alert.call_args.kwargs["sub_msg"]
+
+
+def test_allow_for_session_skips_later_dialogs(route_security, fake_pairing, monkeypatch):
+    security, _, alert = route_security
+    from revit_mcp import approval
+    store = {}
+    monkeypatch.setattr(approval, "is_auto_approved", lambda: store.get("on", False))
+    monkeypatch.setattr(approval, "set_auto_approved", lambda on: store.__setitem__("on", on))
+    alert.return_value = approval.ALLOW_SESSION
+    request = lambda: SimpleNamespace(data=pairing.authorization_body({"code": "1"}), headers={})
+    assert security.authorize_request(request(), "Execute Python code") is None
+    assert alert.call_count == 1 and store["on"] is True
+    assert security.authorize_request(request(), "Set element parameters") is None
+    assert alert.call_count == 1  # no second dialog
+    # Session approval never skips authentication.
+    wrong = SimpleNamespace(data={pairing.AUTH_FIELD: "wrong"}, headers={})
+    assert security.authorize_request(wrong, "Execute Python code").status == 401
+
+
+def test_approval_decision():
+    from revit_mcp import approval
+    assert approval.decision(approval.ALLOW) == (True, False)
+    assert approval.decision(approval.ALLOW_SESSION) == (True, True)
+    assert approval.decision(approval.DECLINE) == (False, False)
+    assert approval.decision(None) == (False, False)
+    assert approval.is_auto_approved() is False  # no .NET AppDomain outside Revit
 
 
 def test_route_rejects_wrong_or_missing_body_token(route_security, fake_pairing):
