@@ -70,6 +70,18 @@ Com erro de validação (nada é aplicado):
 - Commit que o Revit não confirma (`TransactionStatus` ≠ `Committed`) → erro.
 - Lógica testada com um Revit simulado em `tests/unit/test_route_logic.py`.
 
+## Atualização (2026-10-21, usada pelo `import_parameters_from_csv`)
+
+- **`normalize_numbers`** (padrão `false`; a importação CSV liga): só para
+  parâmetros numéricos (`Double`), reescreve "2,40" / "2.40" / "1.234,5" no
+  símbolo decimal do projeto (`doc.GetUnits().DecimalSymbol`). Texto nunca é
+  alterado. A resposta traz `number_format` e, em cada item reescrito, `sent`.
+  Limite conhecido: "1.234" sozinho é lido como decimal (1,234), não milhar.
+- **Mudanças repetidas** no mesmo alvo e parâmetro (com `use_type`, o alvo é o
+  tipo): valores iguais são aplicados uma vez (`collapsed`); valores diferentes
+  são erro com os índices envolvidos e nada é aplicado.
+- **Valor vazio** em parâmetro que não é texto: ignorado com aviso em `warnings`.
+
 ## Regras e casos de borda
 - **Tudo ou nada**: primeiro valida todas as alterações; se houver qualquer
   erro, não abre transação e devolve `errors`. Só então uma única
@@ -109,3 +121,5 @@ Com erro de validação (nada é aplicado):
 - [ ] `"110 cm"` num projeto em metros e num em pés
 - [ ] Sim/Não com `true` e `"não"`
 - [x] Usuário recusa o diálogo → 403, nada aplicado
+- [ ] `normalize_numbers`: "2,40" num projeto pt-BR (vírgula) e num com ponto
+- [ ] Duas portas do mesmo tipo com `use_type`: valores iguais aplicados uma vez, diferentes recusados

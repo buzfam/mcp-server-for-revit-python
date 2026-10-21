@@ -28,6 +28,7 @@ def register_parameter_tools(mcp, revit_get, revit_post):
         changes: List[Dict[str, Any]],
         dry_run: bool = True,
         use_type: bool = False,
+        normalize_numbers: bool = False,
         ctx: Context = None,
     ) -> str:
         """
@@ -57,11 +58,21 @@ def register_parameter_tools(mcp, revit_get, revit_post):
               units, e.g. "110 cm", "2.40", "3' 6\"". Prefer the same format
               as the parameter's "display" value.
             - Element reference (ElementId) parameters are not supported yet.
+            - Empty text ("") clears text parameters; for other parameters it
+              is skipped and listed in "warnings".
+
+        Changes that hit the same parameter of the same element (or the same
+        type, with use_type) are applied once when the values match (listed
+        in "collapsed") and rejected when they differ.
 
         Args:
             changes: 1-500 items like {"element_id": 123456, "parameter": "Mark", "value": "P01"}.
             dry_run: Validate and preview only (default true). Use false to apply.
             use_type: Apply to each element's type instead of the instance.
+            normalize_numbers: Rewrite numbers of numeric (length, area...)
+                parameters to the project's decimal symbol, so "2,40" and
+                "2.40" both work; text parameters are never changed. The
+                response then has number_format and each rewritten result "sent".
         """
         if not changes:
             return "Error: changes must contain at least one item"
@@ -76,5 +87,7 @@ def register_parameter_tools(mcp, revit_get, revit_post):
             await ctx.info("{} {} parameter changes...".format(
                 "Validating" if dry_run else "Applying", len(changes)))
         data = {"changes": changes, "dry_run": dry_run, "use_type": use_type}
+        if normalize_numbers:
+            data["normalize_numbers"] = True
         response = await revit_post("/bulk_set_parameters/", data, ctx, timeout=120.0)
         return format_response(response)

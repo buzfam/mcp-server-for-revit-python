@@ -27,6 +27,13 @@ class TestBulkSetParameters:
         payload = self.mock_post.call_args.args[1]
         assert payload["dry_run"] is False and payload["use_type"] is True
 
+    async def test_normalize_numbers_is_sent_only_when_on(self):
+        await self.tool(changes=[CHANGE], normalize_numbers=True, ctx=None)
+        assert self.mock_post.call_args.args[1]["normalize_numbers"] is True
+        self.mock_post.reset_mock()
+        await self.tool(changes=[CHANGE], normalize_numbers=False, ctx=None)
+        assert "normalize_numbers" not in self.mock_post.call_args.args[1]
+
     @pytest.mark.parametrize("changes, message", [
         ([], "at least one"),
         ([CHANGE] * 501, "at most 500"),

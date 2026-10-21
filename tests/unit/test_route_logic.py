@@ -230,6 +230,111 @@ def test_validate_change(revit_modules, change, ok):
     assert (parameters.validate_change(change) is None) is ok
 
 
+def test_use_type_rows_sharing_a_type(revit_modules):
+    parameters, _ = revit_modules
+    doc = doc_with()
+    doc.elements[3] = FakeElement({}, type_id=2)
+    same = parameters.apply_changes(doc, [
+        {"element_id": 1, "parameter": "Width", "value": "90 cm"},
+        {"element_id": 3, "parameter": "Width", "value": " 90 cm"},
+    ], True, commit=False)
+    assert same["status"] == "dry_run" and len(same["results"]) == 1
+    assert same["collapsed"] == [{"index": 1, "same_as": 0}]
+    Transaction.log = []
+    clash = parameters.apply_changes(doc, [
+        {"element_id": 1, "parameter": "Width", "value": "90 cm"},
+        {"element_id": 3, "parameter": "Width", "value": "80 cm"},
+    ], True, commit=True)
+    assert clash["status"] == "error" and Transaction.log == []
+    assert [e["index"] for e in clash["errors"]] == [0, 1]
+    assert "[0, 1]" in clash["errors"][0]["error"] and "type" in clash["errors"][0]["error"]
+    assert doc.elements[2].params["Width"][0].value == "80"
+
+
+def test_instances_are_not_grouped_across_elements(revit_modules):
+    parameters, _ = revit_modules
+    doc = doc_with(Mark=[FakeParameter(StorageType.String, "a")])
+    doc.elements[3] = FakeElement({"Mark": [FakeParameter(StorageType.String, "b")]})
+    result = parameters.apply_changes(doc, [
+        {"element_id": 1, "parameter": "Mark", "value": "x"},
+        {"element_id": 3, "parameter": "Mark", "value": "y"},
+    ], False, commit=True)
+    assert result["status"] == "success" and result["applied"] == 2
+    assert "collapsed" not in result and "warnings" not in result
+
+
+def test_empty_value_skipped_for_non_text_parameters(revit_modules):
+    parameters, _ = revit_modules
+    doc = doc_with(Mark=[FakeParameter(StorageType.String, "P1")],
+                   Height=[FakeParameter(StorageType.Double, "100")],
+                   Count=[FakeParameter(StorageType.Integer, 1)])
+    result = parameters.apply_changes(doc, [
+        {"element_id": 1, "parameter": "Mark", "value": ""},
+        {"element_id": 1, "parameter": "Height", "value": ""},
+        {"element_id": 1, "parameter": "Count", "value": "  "},
+    ], False, commit=True)
+    assert result["status"] == "success" and result["applied"] == 1
+    assert [w["index"] for w in result["warnings"]] == [1, 2]
+    assert doc.elements[1].params["Mark"][0].value == ""
+    assert doc.elements[1].params["Height"][0].value == "100"
+
+
+@pytest.mark.parametrize("units, value, sent", [
+    ("Dot", "2,40", "2.40"), ("Comma", "2.40", "2,40"), ("Comma", "1.234,5 cm", "1234,5 cm"),
+    ("Dot", "1,234.5", "1234.5"), ("Dot", "110 cm", None),
+])
+def test_normalize_numbers_only_for_double(revit_modules, units, value, sent):
+    parameters, _ = revit_modules
+    doc = doc_with(Mark=[FakeParameter(StorageType.String, "P1")],
+                   Height=[FakeParameter(StorageType.Double, "100")])
+    doc.GetUnits = lambda: SimpleNamespace(DecimalSymbol=units)
+    result = parameters.apply_changes(doc, [
+        {"element_id": 1, "parameter": "Mark", "value": value},
+        {"element_id": 1, "parameter": "Height", "value": value},
+    ], False, commit=False, normalize_numbers=True)
+    assert result["status"] == "dry_run", result
+    assert "sent" not in result["results"][0]
+    assert result["results"][1].get("sent") == sent
+    assert result["number_format"] == {"decimal_symbol": "," if units == "Comma" else ".",
+                                       "normalized": 1 if sent else 0}
+
+
+def test_number_format_absent_by_default(revit_modules):
+    parameters, _ = revit_modules
+    doc = doc_with(Height=[FakeParameter(StorageType.Double, "100")])
+    result = parameters.apply_changes(
+        doc, [{"element_id": 1, "parameter": "Height", "value": "2,40"}], False, commit=False)
+    assert "number_format" not in result
+    assert result["results"][0]["after"] == "2,40" and "sent" not in result["results"][0]
+
+
+@pytest.mark.parametrize("value, symbol, expected", [
+    ("2,40", ".", "2.40"), ("2.40", ",", "2,40"), ("-0,5", ".", "-0.5"),
+    ("1.234,56", ".", "1234.56"), ("1,234.56", ",", "1234,56"), ("1.234.567", ",", "1234567"),
+    ("2,40 m", ".", "2.40 m"), ("12,5 m\u00b2", ".", "12.5 m\u00b2"), ("110 cm", ",", "110 cm"),
+    ("2.40", ".", "2.40"), ("1.2.3,4,5", ".", "1.2.3,4,5"), ("3' 6\"", ".", "3' 6\""),
+    ("Sala 1,2", ".", "Sala 1,2"), ("12,5x30", ".", "12,5x30"), ("", ".", ""), (2.4, ",", 2.4),
+])
+def test_normalize_number_text(revit_modules, value, symbol, expected):
+    parameters, _ = revit_modules
+    assert parameters.normalize_number_text(value, symbol) == expected
+
+
+def test_group_changes(revit_modules):
+    parameters, _ = revit_modules
+    keep, collapsed, conflicts = parameters.group_changes([
+        (0, ("t", "w"), "1"), (1, ("t", "w"), " 1"), (2, ("t", "h"), "a"),
+        (3, ("u", "w"), "x"), (4, ("u", "w"), "y")])
+    assert keep == {0, 2} and collapsed == [{"index": 1, "same_as": 0}] and conflicts == [[3, 4]]
+
+
+def test_project_decimal_symbol(revit_modules):
+    parameters, _ = revit_modules
+    assert parameters.project_decimal_symbol(SimpleNamespace()) == "."
+    assert parameters.project_decimal_symbol(
+        SimpleNamespace(GetUnits=lambda: SimpleNamespace(DecimalSymbol="Comma"))) == ","
+
+
 # ---- model_health_report ----
 
 @pytest.mark.parametrize("total, flag", [(0, "ok"), (199, "ok"), (200, "medium"), (499, "medium"), (500, "high")])
