@@ -6,7 +6,7 @@ Remote (from another machine, Revit PC running the network server):
 Local (on the Revit PC itself, stdio like Claude Desktop):
     uv run --frozen python scripts/smoke.py --local
 
-Before running: open a model in Revit, pair (MCP > Bridge > Connect) and
+Before running: open a model in Revit, pair (MCP > Bridge, the button shows Connected) and
 select 1-3 elements so the selection/parameter tools have something to read.
 Only read-only tools are called, plus bulk_set_parameters in dry-run mode
 (validated inside a transaction that is rolled back); nothing is changed.
@@ -67,8 +67,8 @@ def result_text(result):
 
 def classify(text):
     """(status, detail) for a tool's text output."""
-    if "Connect button" in text or (text.startswith("Error") and "pairing" in text.lower()):
-        return FAIL, "Revit not paired on that PC: MCP > Bridge > Connect"
+    if "MCP > Bridge" in text or (text.startswith("Error") and "pairing" in text.lower()):
+        return FAIL, "Revit not paired on that PC: click MCP > Bridge (Disconnected)"
     if text.startswith("Error") or "=== ERROR DETAILS ===" in text:
         first = next((line for line in text.splitlines() if line.startswith("Error")), text)
         return FAIL, first[:200]

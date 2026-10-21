@@ -14,7 +14,7 @@ The review candidate retains all 20 tools, including Python execution. See
 [publication requirements and outstanding gates](docs/autodesk-marketplace.md),
 [privacy information](PRIVACY.md), and [security boundaries](SECURITY.md).
 
-After installing the pyRevit extension, choose **MCP > Bridge > Connect** in Revit
+After installing the pyRevit extension, click **MCP > Bridge** in Revit (the button shows **Disconnected** until paired, then **Connected**)
 to consent and create an encrypted pairing secret for your Windows user. Choose
 **Disconnect** to revoke it. Requests that change models and Python execution show
 their payload for review in Revit before proceeding. Pairing also permits local
@@ -179,7 +179,7 @@ pyRevit will start listening on port `http://localhost:48884/`
 
 Once installed, test that the Routes API is working:
 
-1. Choose **MCP > Bridge > Connect** in Revit, then run this authenticated
+1. Pair with **MCP > Bridge** in Revit (the button must show **Connected**), then run this authenticated
    check from the exact candidate directory (a browser request has no pairing
    header and is denied):
    ```bash

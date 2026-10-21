@@ -7,6 +7,13 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- `get_revit_view` não achava vistas com acento ("Nível 1"): o `unquote` do
+  IronPython 2 lia o UTF-8 como Latin-1. Novo `repair_utf8` em `revit_mcp/utils.py`.
+- `color_splash`, `clear_colors` e `list_category_parameters` agora aceitam a
+  categoria no idioma do modelo ("Paredes", sem diferenciar maiúsculas) **ou** o
+  nome em inglês/API ("Walls", "OST_Walls"). Antes um Revit em português recusava "Walls".
+- `get_token` também trata `IOError` (no IronPython 2 não é `OSError`): sem
+  pareamento, a rota responde 401 em vez de um erro inesperado (upstream #70).
 - **401 depois do pareamento no pyRevit 6.x/7.0** (upstream #70, #71, #73; pyRevit
   #3765): o pyRevit Routes não repassa os cabeçalhos HTTP às rotas, então o
   `Authorization: Bearer` nunca chegava ao Revit. O segredo de pareamento agora
@@ -17,6 +24,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Alterado
+- **Connect e Disconnect viraram um botão só**, que mostra o estado atual:
+  **Connected** (ícone verde) ou **Disconnected** (vermelho). Desconectado, o
+  clique conecta; conectado, oferece *Desconectar* ou *Trocar o segredo*. O título
+  e o ícone são lidos ao carregar o pyRevit e atualizados a cada clique.
 - Botões **Connect**, **Disconnect** e **Privacy** ganharam ícones e dicas em
   português (antes apareciam como um bloco cinza sem identificação). O aviso do
   Connect ficou em português, com a pergunta curta e os detalhes em tópicos,

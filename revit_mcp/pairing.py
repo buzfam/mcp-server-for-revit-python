@@ -93,8 +93,18 @@ def get_token():
         if len(token) != 64 or any(c not in "0123456789abcdef" for c in token):
             raise ValueError("Invalid pairing data")
         return token
-    except (OSError, ValueError, PairingError):
-        raise PairingError("Use Revit's MCP > Bridge > Connect button to consent and pair this Windows user.")
+    # IOError is not an OSError on IronPython 2 (a missing file raised past this).
+    except (IOError, OSError, ValueError, PairingError):
+        raise PairingError("Use Revit's MCP > Bridge button (it shows Disconnected) to consent and pair this Windows user.")
+
+
+def is_paired():
+    """True when this Windows user has a readable pairing secret."""
+    try:
+        get_token()
+        return True
+    except PairingError:
+        return False
 
 
 # pyRevit Routes (6.x and 7.0, pyRevit issue #3765) never copies HTTP headers

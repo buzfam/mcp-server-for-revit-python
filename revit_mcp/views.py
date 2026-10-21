@@ -19,7 +19,7 @@ try:
 except ImportError:
     from urllib import unquote
 
-from .utils import normalize_string, get_element_name, element_id_value
+from .utils import normalize_string, get_element_name, element_id_value, repair_utf8
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def register_views_routes(api):
 
             # Decode URL-encoded characters (e.g. %20 -> space)
             # httpx encodes the path but pyRevit's router doesn't decode params
-            view_name = unquote(view_name)
+            view_name = repair_utf8(unquote(view_name))
             # Normalize the view name
             view_name = normalize_string(view_name)
             logger.info("Exporting view: {}".format(view_name))

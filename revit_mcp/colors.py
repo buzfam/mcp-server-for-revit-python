@@ -10,7 +10,7 @@ import logging
 from .security import authorize_request
 import random
 from collections import defaultdict
-from .utils import normalize_string, element_id_value
+from .utils import normalize_string, element_id_value, find_category
 
 logger = logging.getLogger(__name__)
 
@@ -612,13 +612,7 @@ def color_elements_by_parameter(
     """
     try:
         # Find the category
-        categories = doc.Settings.Categories
-        target_category = None
-
-        for cat in categories:
-            if cat.Name == category_name:
-                target_category = cat
-                break
+        target_category = find_category(doc, category_name)
 
         if not target_category:
             return {
@@ -903,13 +897,7 @@ def clear_element_colors(doc, category_name):
     """
     try:
         # Find the category
-        categories = doc.Settings.Categories
-        target_category = None
-
-        for cat in categories:
-            if cat.Name == category_name:
-                target_category = cat
-                break
+        target_category = find_category(doc, category_name)
 
         if not target_category:
             return {
@@ -1005,13 +993,7 @@ def list_category_parameters(doc, category_name):
     """
     try:
         # Find the category
-        categories = doc.Settings.Categories
-        target_category = None
-
-        for cat in categories:
-            if cat.Name == category_name:
-                target_category = cat
-                break
+        target_category = find_category(doc, category_name)
 
         if not target_category:
             return {

@@ -165,6 +165,15 @@ def utils_unicode():
     from revit_mcp.utils import normalize_string
     assert normalize_string(u"T\u00e9rreo ") == u"T\u00e9rreo"
     assert isinstance(normalize_string("abc"), unicode)
+    from revit_mcp.utils import repair_utf8, category_matches
+    try:
+        from urllib import unquote
+    except ImportError:
+        from urllib.parse import unquote
+    assert repair_utf8(unquote(u"N%C3%ADvel%201")) == u"N\u00edvel 1"
+    assert repair_utf8(u"N\u00edvel 1") == u"N\u00edvel 1"
+    assert category_matches(u"Walls", u"Paredes", "OST_Walls")
+    assert category_matches(u"Generic Models", u"Modelos gen\u00e9ricos", "OST_GenericModel")
 
 
 print("IronPython {}".format(sys.version))

@@ -10,7 +10,8 @@ para quem vai corrigir (ou cole no Claude: ele marca os checklists das specs).
 ## 0. Preparar o PC do Revit
 1. Instale/atualize a extensão (pyRevit > Extensions, ou `git pull` + *Reload*).
 2. Abra um modelo de teste (pode ser `tests/test.rvt`).
-3. **MCP > Bridge > Connect** (pareamento).
+3. **MCP > Bridge**: o botão deve mostrar **Connected**; se mostrar
+   **Disconnected**, clique e conecte (pareamento).
 4. **Selecione 1 a 3 elementos** (ex.: uma parede e uma porta): o smoke usa a
    seleção para testar `get_selected_elements` e `get_element_parameters`.
 

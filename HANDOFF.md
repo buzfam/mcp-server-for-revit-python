@@ -12,7 +12,10 @@ _Última atualização: 2026-10-20_
   modo remoto validado pela rede (401 sem token/token errado, `initialize`,
   24 tools). Toda rota respondia 401 mesmo pareada: bug do pyRevit Routes, que
   não repassa cabeçalhos (pyRevit #3765). Corrigido mandando o segredo no corpo
-  JSON (`revit_mcp_auth`); **falta revalidar no PC** depois de atualizar a extensão.
+  JSON (`revit_mcp_auth`). **Revalidado no PC: 15 ok**, 1 aviso (nada
+  selecionado, modelo vazio), 2 falhas corrigidas em seguida (vista com acento e
+  categoria em inglês num Revit em português); falta rodar o smoke de novo.
+  Botão de pareamento único (Connected/Disconnected) ainda não visto no Revit.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
   `model_health_report` (004), no `master`. **Nenhuma validada no Revit.**

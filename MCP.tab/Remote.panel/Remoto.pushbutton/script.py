@@ -95,7 +95,7 @@ def start():
     try:
         get_token()
     except PairingError:
-        forms.alert("Faça o pareamento primeiro: MCP > Bridge > Connect.", title=TITLE)
+        forms.alert(u"Conecte primeiro: clique em MCP > Bridge (botão Disconnected).", title=TITLE)
         return
     if not has_remote_token():
         if not forms.alert("Ainda não existe token remoto. Criar agora?",

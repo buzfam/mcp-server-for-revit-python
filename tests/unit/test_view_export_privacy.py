@@ -51,7 +51,7 @@ def test_view_export_uses_fresh_directory_and_cleans_it(tmp_path, monkeypatch, f
     namespace = {
         "authorize_request": lambda *args, **kwargs: None, "tempfile": tempfile,
         "os": os, "shutil": shutil, "base64": base64, "DB": db,
-        "List": NetList, "unquote": lambda name: name,
+        "List": NetList, "unquote": lambda name: name, "repair_utf8": lambda name: name,
         "normalize_string": lambda text: text, "get_element_name": lambda item: item.Name,
         "logger": logging.getLogger(__name__),
         "routes": SimpleNamespace(make_response=lambda data, status=200: SimpleNamespace(data=data, status=status)),

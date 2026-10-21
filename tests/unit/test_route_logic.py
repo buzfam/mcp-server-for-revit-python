@@ -254,3 +254,42 @@ def test_health_flags_clean_model(revit_modules):
               "views": {"placeable": 10, "not_on_sheets": 2, "unused_templates": 0},
               "revit_links": [{"name": "A.rvt", "status": "Loaded"}]}
     assert health.health_flags(report) == []
+
+
+# ---- utils: localized names ----
+
+@pytest.mark.parametrize("raw, expected", [
+    (u"N\xc3\xadvel 1", u"N\xedvel 1"),   # UTF-8 read as Latin-1 by IronPython 2 unquote
+    (u"N\xedvel 1", u"N\xedvel 1"),       # already right
+    (u"Level 1", u"Level 1"),
+    (u"平面", u"平面"),   # outside Latin-1: unchanged
+])
+def test_repair_utf8(revit_modules, raw, expected):
+    utils = importlib.import_module("revit_mcp.utils")
+    assert utils.repair_utf8(raw) == expected
+
+
+@pytest.mark.parametrize("requested, localized, builtin, expected", [
+    ("Paredes", "Paredes", "OST_Walls", True),
+    ("paredes ", "Paredes", "OST_Walls", True),
+    ("Walls", "Paredes", "OST_Walls", True),
+    ("OST_Walls", "Paredes", "OST_Walls", True),
+    ("Generic Models", "Modelos genéricos", "OST_GenericModel", True),
+    ("Structural Columns", "Pilares estruturais", "OST_StructuralColumns", True),
+    ("Doors", "Paredes", "OST_Walls", False),
+    ("Walls", "Paredes", None, False),
+    ("", "Paredes", "OST_Walls", False),
+])
+def test_category_matches(revit_modules, requested, localized, builtin, expected):
+    utils = importlib.import_module("revit_mcp.utils")
+    assert utils.category_matches(requested, localized, builtin) is expected
+
+
+def test_find_category_prefers_exact_localized_name(revit_modules):
+    utils = importlib.import_module("revit_mcp.utils")
+    walls = SimpleNamespace(Name="Paredes", BuiltInCategory="OST_Walls")
+    doors = SimpleNamespace(Name="Portas", BuiltInCategory="OST_Doors")
+    doc = SimpleNamespace(Settings=SimpleNamespace(Categories=[walls, doors]))
+    assert utils.find_category(doc, "Walls") is walls
+    assert utils.find_category(doc, "Portas") is doors
+    assert utils.find_category(doc, "Windows") is None

@@ -35,6 +35,63 @@ def normalize_string(text):
         return u"Unnamed"
 
 
+def repair_utf8(text):
+    """Undo UTF-8 read as Latin-1 (u"N\xc3\xadvel" -> u"N\xedvel").
+
+    IronPython 2's urllib.unquote turns each %XX of a UTF-8 path parameter into
+    one character, so accented view names arrive garbled. Text that is not
+    such a mis-decoding is returned unchanged.
+    """
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeError, AttributeError):
+        return text
+
+
+def _category_key(text):
+    return u"".join(normalize_string(text).lower().split())
+
+
+def category_matches(requested, localized_name, builtin_name=None):
+    """True when a requested category name matches a Revit category.
+
+    Accepts the name in the model's language ("Paredes"), case-insensitive, or
+    the English/API name ("Walls", "OST_Walls"), so the same request works in a
+    Revit installed in any language.
+    """
+    wanted = _category_key(requested)
+    if not wanted:
+        return False
+    if wanted == _category_key(localized_name):
+        return True
+    if not builtin_name:
+        return False
+    builtin = _category_key(builtin_name)
+    if builtin.startswith(u"ost_"):
+        builtin = builtin[4:]
+    if wanted.startswith(u"ost_"):
+        wanted = wanted[4:]
+    # OST_GenericModel vs "Generic Models": also compare without a plural "s".
+    return wanted in (builtin, builtin + u"s") or wanted.rstrip(u"s") == builtin
+
+
+def find_category(doc, category_name):
+    """Find a category by localized name, English/API name or OST_ name."""
+    fallback = None
+    for category in doc.Settings.Categories:
+        if normalize_string(category.Name) == normalize_string(category_name):
+            return category
+        if fallback is None:
+            builtin = None
+            try:
+                builtin = str(category.BuiltInCategory)
+            except Exception:
+                pass
+            if category_matches(category_name, category.Name, builtin):
+                fallback = category
+    return fallback
+
+
 def element_id_value(element_id):
     """Get the integer value from an ElementId.
 

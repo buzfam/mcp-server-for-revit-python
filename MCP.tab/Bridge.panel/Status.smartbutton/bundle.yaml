@@ -1,0 +1,3 @@
+title: Disconnected
+tooltip: "Estado do pareamento com o Revit MCP. Disconnected: clique para conectar. Connected: clique para desconectar ou trocar o segredo."
+help_url: https://github.com/mcp-servers-for-revit/mcp-server-for-revit-python/blob/master/PRIVACY.md#consent-and-revocation

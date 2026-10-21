@@ -10,7 +10,7 @@ from scripts import smoke
     ("=== REVIT STATUS ===\nStatus: active", smoke.PASS),
     ("Error: Request timed out after 30 seconds.", smoke.FAIL),
     ("=== ERROR DETAILS ===\nStatus: unknown\nError: boom", smoke.FAIL),
-    ("Error: Use Revit's MCP > Bridge > Connect button to consent and pair this Windows user.",
+    ("Error: Use Revit's MCP > Bridge button (it shows Disconnected) to consent and pair this Windows user.",
      smoke.FAIL),
 ])
 def test_classify(text, status):
@@ -18,8 +18,8 @@ def test_classify(text, status):
 
 
 def test_classify_explains_missing_pairing():
-    status, detail = smoke.classify("Error: Use Revit's MCP > Bridge > Connect button ...")
-    assert "Connect" in detail
+    status, detail = smoke.classify("Error: Use Revit's MCP > Bridge button ...")
+    assert "MCP > Bridge" in detail
 
 
 def test_parse_args_remote_needs_token(monkeypatch):

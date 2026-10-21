@@ -23,7 +23,8 @@ Spec: [`docs/specs/006-network-access.md`](specs/006-network-access.md).
 
 Tudo fica em **MCP > Remote > Remoto** no ribbon do Revit:
 
-1. **MCP > Bridge > Connect** (pareamento, uma vez por usuário Windows).
+1. **MCP > Bridge > Disconnected** → *Conectar* (pareamento, uma vez por usuário
+   Windows). O botão passa a mostrar **Connected**.
 2. **Remoto > Iniciar servidor remoto**. Na primeira vez:
    - cria o token remoto se ainda não existir;
    - se o `uv` não estiver instalado, oferece instalar (baixa de astral.sh, só
@@ -109,7 +110,7 @@ O cliente passa a usar `https://...` (no `mcp-remote`, sem `--allow-http`).
 |---|---|
 | `401 MCP pairing required` | Token remoto ausente, errado ou revogado (confira em *Remoto > Ver token*) |
 | `421 Invalid Host header` | O agente usa um nome/IP fora da lista: acrescente `--allowed-host` |
-| Tool responde "Use Revit's MCP > Bridge > Connect" | Falta o pareamento no Revit daquele PC |
+| Tool responde "Use Revit's MCP > Bridge button" | Falta o pareamento no Revit daquele PC |
 | Conexão recusada / timeout | Firewall do Windows, IP errado ou servidor parado (*Remoto > Iniciar*) |
 | Servidor não inicia | *Remoto > Ver log do servidor*; na 1ª vez precisa de internet para baixar dependências |
 | Escrita "trava" | O diálogo de aprovação está aberto no Revit esperando alguém no PC |

@@ -191,7 +191,7 @@ async def test_runtime_manifest_and_unpaired_tool_surface(monkeypatch, tmp_path)
     # Local discovery never accesses the registry before consent.
     response = await mcp.call_tool("list_revit_installations", {})
     content = response[0] if isinstance(response, tuple) else response
-    assert "Connect button" in content[0].text
+    assert "MCP > Bridge" in content[0].text
 
 
 async def test_revit_http_client_has_auth_and_ignores_proxies(paired_user, monkeypatch):
