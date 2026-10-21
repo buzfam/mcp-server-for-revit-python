@@ -39,6 +39,13 @@ _Última atualização: 2026-10-20_
   "viewport vazio" na prática, tamanho das esquadrias (`size_source`) e fases
   em FromRoom/ToRoom. Padrões de medição (vãos > 2 m² etc.) **precisam ser
   confirmados com o escritório**.
+- **2026-10-21 (3): 6 tools novas (44 no total), não validadas no Revit**: fases
+  (016), PDF nativo (017), renumeração (018), pisos/forros pelos ambientes (020);
+  CSV (019) em revisão. **Toda tool desta leva e das anteriores (007–015) passou
+  por revisão de outro agente** e as correções foram aplicadas (ver CHANGELOG).
+  `revit_mcp/transactions.py` (`Batch`) é o padrão para escrita: grupo de
+  transação, avisos na resposta, dry run que roda e desfaz. `startup.py` registra
+  cada módulo separadamente. Histórico de aprovações: botão **Bridge > Histórico**.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
   `model_health_report` (004), no `master`. **Nenhuma validada no Revit.**
@@ -91,6 +98,11 @@ _Última atualização: 2026-10-20_
          com um checklist de exemplo da spec 013, `check_render_materials` num
          móvel conhecido, `room_finishes` (bater um ambiente à mão) e
          `quantities_by_rule` em CSV.
+   - [ ] **016–020**: fases num projeto de reforma, PDF (nome, pasta,
+         `emissao.json`, substituição com backup, arquivo aberto no Acrobat → 423),
+         renumerar portas por ambiente e trocar A-101 ↔ A-102, pisos/forros pelos
+         ambientes (altura do forro, fase). Checklists no fim de cada spec.
+   - [ ] **Botão Bridge > Histórico** mostra permitidos/recusados/automáticos.
    - [ ] Itens ainda abertos das specs 001–004 e 006 (checklists em cada spec):
          seleção grande truncada, parâmetro compartilhado, Sim/Não, `"110 cm"`,
          *Parar servidor* liberando a porta 8000.

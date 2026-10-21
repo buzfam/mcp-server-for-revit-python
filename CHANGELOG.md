@@ -37,6 +37,33 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **6 tools novas (44 no total)**, todas revisadas por um segundo agente antes do commit:
+  - `phases_report` e `set_element_phases` (spec 016): fases, filtros de fase,
+    contagem por fase de criação/demolição; mudança de fase em lote para reforma.
+  - `export_sheets_pdf` (spec 017): exportador **nativo** do Revit 2024, nome pela
+    regra do escritório, `emissao.json` + histórico `emissao_historico.jsonl`;
+    substitui arquivos só com backup e mostra pasta e arquivos no diálogo.
+  - `renumber_elements` (spec 018): portas por ambiente, janelas por nível,
+    ambientes e folhas em sequência (troca A-101 ↔ A-102), por fase.
+  - `create_floors_from_rooms` e `create_ceilings_from_rooms` (spec 020): piso e
+    forro pelo contorno do ambiente, na fase do ambiente.
+- `expected_count` nas tools de fase e de piso/forro: o envio real recusa (409) se
+  a quantidade mudou desde o dry run; o diálogo de aprovação mostra o que será alterado.
+
+### Corrigido
+- Revisão das tools 007–015 (2026-10-21), entre outros:
+  - Paredes e ambientes usavam `Level.Elevation` como Z do modelo; agora
+    `ProjectElevation` (falhava com níveis medidos do ponto de levantamento).
+  - Porta por ponto sem nível podia ir para a parede do andar de cima.
+  - Folhas e tags abriam diálogos de aviso do Revit; agora usam o mesmo
+    `Batch` (`revit_mcp/transactions.py`) que coleta avisos na resposta.
+  - Quantitativos somavam todas as fases e contavam paredes empilhadas em dobro;
+    agora filtram pela fase, tiram cortina e laje estrutural dos acabamentos e
+    têm o modo `excess_over_threshold` (desconta só o que passa de 2 m²).
+  - Auditoria e checagem de pranchas com limite de tempo; materiais incluem
+    famílias aninhadas e malhas (DXF).
+- `startup.py` registra cada módulo de rotas separadamente: um módulo que falha
+  ao importar não derruba mais as rotas dos outros.
 - **Histórico de aprovações**: cada pedido de alteração revisado (permitido,
   recusado ou liberado pela aprovação da sessão) fica na memória do Revit até
   fechar e no `revit-mcp.log`. Novo botão **MCP > Bridge > Histórico**.
