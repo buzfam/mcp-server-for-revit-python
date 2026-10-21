@@ -57,6 +57,22 @@ def register_routes():
 
         register_health_routes(api)
 
+        from revit_mcp.sheets import register_sheet_routes
+
+        register_sheet_routes(api)
+
+        from revit_mcp.annotation import register_annotation_routes
+
+        register_annotation_routes(api)
+
+        from revit_mcp.exports import register_export_routes
+
+        register_export_routes(api)
+
+        from revit_mcp.modeling import register_modeling_routes
+
+        register_modeling_routes(api)
+
         logger.info("All MCP routes registered successfully")
 
     except Exception as e:

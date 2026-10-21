@@ -13,6 +13,11 @@ do código. A implementação segue a skill `add-mcp-tool`.
 | 004 | [model_health_report](004-model-health-report.md) | leitura | Implementada (não validada no Revit) |
 | 005 | [Fábrica: hub + agentes](005-fleet-hub.md) | arquitetura | Proposta (adiada; primeiro a 006) |
 | 006 | [Acesso pela rede (direto)](006-network-access.md) | transporte | Implementada (não validada no Revit) |
+| 007 | [create_sheets, place_views_on_sheets](007-sheets.md) | escrita | Implementada (não validada no Revit) |
+| 008 | [apply_view_template](008-apply-view-template.md) | escrita | Implementada (não validada no Revit) |
+| 009 | [tag_elements](009-tag-elements.md) | escrita | Implementada (não validada no Revit) |
+| 010 | [export_schedule, export_rooms](010-export-data.md) | leitura | Implementada (não validada no Revit) |
+| 011 | [create_walls, create_rooms, place_hosted_families](011-modeling.md) | escrita | Implementada (não validada no Revit) |
 
 Status: **Proposta** → **Em desenvolvimento** → **Implementada (não validada no Revit)** → **Validada no Revit <ano>**.
 

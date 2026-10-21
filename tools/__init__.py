@@ -18,6 +18,10 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     from .selection_tools import register_selection_tools
     from .parameter_tools import register_parameter_tools
     from .health_tools import register_health_tools
+    from .sheet_tools import register_sheet_tools
+    from .annotation_tools import register_annotation_tools
+    from .export_tools import register_export_tools
+    from .modeling_tools import register_modeling_tools
 
     # Register tools from each module
     register_status_tools(mcp_server, revit_get_func)
@@ -33,3 +37,7 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     register_selection_tools(mcp_server, revit_get_func, revit_post_func)
     register_parameter_tools(mcp_server, revit_get_func, revit_post_func)
     register_health_tools(mcp_server, revit_get_func, revit_post_func)
+    register_sheet_tools(mcp_server, revit_get_func, revit_post_func)
+    register_annotation_tools(mcp_server, revit_get_func, revit_post_func)
+    register_export_tools(mcp_server, revit_get_func, revit_post_func)
+    register_modeling_tools(mcp_server, revit_get_func, revit_post_func)

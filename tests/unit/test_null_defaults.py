@@ -9,7 +9,7 @@ from main import mcp
 
 
 def _sample(prop):
-    return "x" if prop.get("type") == "string" else 1
+    return {"string": "x", "array": [], "object": {}}.get(prop.get("type"), 1)
 
 
 async def test_null_default_args_accept_explicit_null():

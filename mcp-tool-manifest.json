@@ -8,6 +8,10 @@
   },
   "tools": [
     {
+      "name": "apply_view_template",
+      "description": "Applies a view template to many views chosen by name, id or view type in one all-or-nothing transaction after review in Revit; dry_run (default) only previews before/after templates."
+    },
+    {
       "name": "bulk_set_parameters",
       "description": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
     },
@@ -24,8 +28,28 @@
       "description": "Applies view color overrides to elements grouped by a parameter value."
     },
     {
+      "name": "create_rooms",
+      "description": "Creates rooms at points or inside new room separation polygons (meters), with name, number and tags, and reports areas in m²; all or nothing after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
+      "name": "create_sheets",
+      "description": "Creates many sheets with a chosen or default title block in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
+      "name": "create_walls",
+      "description": "Creates straight walls from start/end points in meters on a level, with type, height or top level, in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
       "name": "execute_revit_code",
       "description": "Executes supplied IronPython code in Revit with the Windows user's permissions after review in Revit; code can access model data, files and network services."
+    },
+    {
+      "name": "export_rooms",
+      "description": "Lists rooms with number, name, level, area, perimeter, volume and placement status, as JSON or CSV."
+    },
+    {
+      "name": "export_schedule",
+      "description": "Reads a schedule's rows as JSON or CSV text."
     },
     {
       "name": "get_current_view_elements",
@@ -96,12 +120,24 @@
       "description": "Places a loaded family instance at specified coordinates and sets requested properties."
     },
     {
+      "name": "place_hosted_families",
+      "description": "Places doors, windows or other wall-hosted families in walls by wall id and offset or nearest point (meters), with sill height and flips; all or nothing after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
+      "name": "place_views_on_sheets",
+      "description": "Places many views and schedules on sheets at given or title-block-centred positions in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
       "name": "save_document",
       "description": "Saves the active document in place or to a specified new file."
     },
     {
       "name": "sync_with_central",
       "description": "Synchronizes the active workshared model with central using requested relinquish options."
+    },
+    {
+      "name": "tag_elements",
+      "description": "Tags every element of a category in a view (rooms, doors, windows...) after review in Revit; dry_run (default) only counts what would be tagged."
     }
   ],
   "resources": [],
@@ -115,6 +151,12 @@
     "Revit API - Parameter Set/SetValueString in a single Transaction (bulk edits)",
     "Revit API - Document warnings, ImportInstance, Family, View, Viewport, RevitLinkType and GroupType collectors (model health)",
     "Revit API - OpenAndActivateDocument, Document.Close, Save, SaveAs and SynchronizeWithCentral",
+    "Revit API - ViewSheet.Create, title block FamilySymbol, Viewport.CanAddViewToSheet/Create and ScheduleSheetInstance.Create in a single Transaction (sheets)",
+    "Revit API - View.IsValidViewTemplate and View.ViewTemplateId in a single Transaction (view templates)",
+    "Revit API - IndependentTag.Create, NewRoomTag, NewAreaTag and GetDefaultFamilyTypeId in a single Transaction (tagging)",
+    "Revit API - ViewSchedule TableData/GetSectionData/GetCellText and Room area, perimeter and volume (data export)",
+    "Revit API - Wall.Create, WallType, WallUtils, Document.Create.NewRoom/NewRoomBoundaryLines/NewRoomTag, SketchPlane and NewFamilyInstance on wall hosts (modeling)",
+    "Revit API - TransactionGroup Assimilate/RollBack and IFailuresPreprocessor/FailuresAccessor (dry-run validation and warning handling)",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],
   "ai_llm_providers": []

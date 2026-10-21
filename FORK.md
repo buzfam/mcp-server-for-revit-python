@@ -24,7 +24,7 @@ relatos, só **lê** o modelo. O diferencial deste fork é:
 
 | Área | Upstream | Fork |
 |---|---|---|
-| Tools | 20 | 24 (+ `get_selected_elements`, `get_element_parameters`, `bulk_set_parameters`, `model_health_report`) e roadmap abaixo |
+| Tools | 20 | 33 (+ specs 001–004 e 007–011: seleção, parâmetros, saúde, folhas, templates, tags, exportação, modelagem) |
 | Guia para agentes | — | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/` |
 | Acompanhamento | — | `HANDOFF.md`, `CHANGELOG.md`, `docs/specs/` |
 | `.gitignore` | ignora `CLAUDE.md` | `CLAUDE.md` versionado |
@@ -44,14 +44,15 @@ parâmetros em massa, saúde do modelo, tags, templates). Status em `docs/specs/
 | 002 | `get_element_parameters` | leitura | Base: ver parâmetros de elementos |
 | 003 | `bulk_set_parameters` | escrita | Edição de parâmetros em massa (Excel/CSV → Revit) |
 | 004 | `model_health_report` | leitura | Avisos, CAD importado, in-place, vistas soltas |
-| 005 | `create_sheets` / `place_views_on_sheets` | escrita | Criação e organização de folhas |
-| 006 | `apply_view_template` (lote) | escrita | Templates em muitas vistas |
-| 007 | `tag_elements` | escrita | Tags por categoria e vista (generaliza `tag_walls`) |
-| 008 | `export_schedule` / `export_rooms` | leitura | Dados para CSV/Excel |
+| 007 | `create_sheets` / `place_views_on_sheets` (feito) | escrita | Criação e organização de folhas |
+| 008 | `apply_view_template` (lote, feito) | escrita | Templates em muitas vistas |
+| 009 | `tag_elements` (feito) | escrita | Tags por categoria e vista (generaliza `tag_walls`) |
+| 010 | `export_schedule` / `export_rooms` (feito) | leitura | Dados para CSV/Excel |
+| 011 | `create_walls` / `create_rooms` / `place_hosted_families` (feito) | escrita | Modelar sem o agente escrever código solto |
 | 006 | **Acesso pela rede direto** (feito) | transporte | Agente em outra máquina controla o Revit pelo IP do PC ([guia](docs/acesso-remoto.md)) |
 | 005 | **Fábrica**: hub central + agentes nos PCs | arquitetura | Vários PCs num ponto só, com aprovação e auditoria centrais |
 
-Specs detalhadas existem para 001 a 004; as demais são escritas quando entrarem
+Specs detalhadas existem para 001 a 011; as próximas são escritas quando entrarem
 em desenvolvimento.
 
 ## Sincronizar com o upstream

@@ -204,6 +204,72 @@ def utils_unicode():
     assert category_matches(u"Generic Models", u"Modelos gen\u00e9ricos", "OST_GenericModel")
 
 
+def sheet_helpers():
+    from revit_mcp import sheets
+    assert sheets.name_key(u" Planta  TÉRREO ") == u"planta térreo"
+    assert sheets.name_key(None) == u""
+    assert sheets.split_title_block(u"Carimbo A1 : Padrão") == (u"Carimbo A1", u"Padrão")
+    assert sheets.split_title_block(u"Padrão") == (None, u"Padrão")
+    assert abs(sheets.meters_to_feet(0.3048) - 1.0) < 1e-9
+    assert sheets.is_number(long(2)) and not sheets.is_number(True)
+    assert sheets.duplicate_indexes([u"a101", u"a102", u"a101", None, None]) == [2]
+    assert sheets.validate_sheet_item({u"number": u"A101", u"name": u"Planta Térreo"}) is None
+    assert sheets.validate_sheet_item({u"number": u"", u"name": u"x"})
+    assert sheets.validate_placement({u"sheet_number": u"A101", u"view": u"Térreo"}) is None
+    assert sheets.validate_placement({u"sheet_number": u"A101", u"view_id": long(5),
+                                      u"x": 0.4, u"y": 1}) is None
+    assert sheets.validate_placement({u"sheet_number": u"A101", u"view": u"a", u"view_id": 5})
+    assert sheets.validate_placement({u"sheet_number": u"A101", u"view": u"a", u"x": 1})
+    assert sheets.validate_view_ref(long(12345)) is None
+    assert sheets.validate_view_ref(u"Térreo") is None
+    assert sheets.validate_view_ref(True)
+
+
+def annotation_export_helpers():
+    from revit_mcp import annotation, exports
+    assert annotation.tag_category_candidates("OST_Doors")[0] == "OST_DoorTags"
+    assert annotation.tag_category_candidates(None) == ["OST_MultiCategoryTags"]
+    assert annotation.tag_type_matches(u"etiqueta de porta: padrão", u"Etiqueta de porta", u"Padrão")
+    assert not annotation.tag_type_matches(u"", u"A", u"B")
+    assert annotation.bbox_centre((0, 0, 0), (2, 4, 6)) == (1.0, 2.0, 3.0)
+    to_tag, skipped, truncated = annotation.plan_candidates([(1, None), (2, None), (3, None)], set([1]), True, 1)
+    assert [i for i, _ in to_tag] == [2] and skipped == {"already_tagged": 1} and truncated
+    csv = exports.csv_text([u"Nome", u"Área"], [[u"Sala, estar", 12.5], [u'Hall "A"', None], [u"Ação", long(3)]])
+    assert isinstance(csv, unicode)
+    assert csv == u'Nome,Área\n"Sala, estar",12.5\n"Hall ""A""",\nAção,3\n'
+    assert exports.room_status(False, 0) == "unplaced"
+    assert exports.room_status(True, 0) == "not_enclosed"
+    assert exports.room_status(True, 1.5) == "placed"
+    assert exports.rounded(100.0, exports.SQFT_TO_M2) == 9.29
+    assert exports.header_row_index([[u"P1"], [u"Marca"]], [u"marca "]) == 1
+    assert exports.parse_options({"format": "CSV", "limit": long(5)}) == (5, "csv", None)
+    returned, total, counts, area, truncated = exports.summarize_rooms(
+        [{"number": u"1", "level": u"Térreo", "status": "placed", "area_m2": 10.0}],
+        u"térreo", True, 200)
+    assert total == 1 and counts["placed"] == 1 and area == 10.0 and not truncated
+
+
+def modeling_helpers():
+    from revit_mcp import modeling
+    assert abs(modeling.to_feet(0.3048) - 1.0) < 1e-9
+    assert abs(modeling.sqft_to_sqm(100) - 9.290304) < 1e-9
+    square = [[0, 0], [4, 0], [4, 2], [0, 2]]
+    assert modeling.polygon_centroid(square) == (2.0, 1.0)
+    assert modeling.point_in_polygon((1, 1), square)
+    assert modeling.is_point([long(1), 2.5]) and not modeling.is_point([True, 0])
+    segments = [("a", (0, 0), (5, 0)), ("b", (5, 0), (5, 5))]
+    assert modeling.nearest_segment((2, 0.3), segments, 0.5)[0] == "a"
+    assert modeling.nearest_segment((2, 2), segments, 0.5) is None
+    assert modeling.same_name(u"Térreo ", u"térreo")
+    entries = [(u"Porta Simples", u"90x210", "p90"), (u"Porta Simples", u"80x210", "p80")]
+    assert modeling.match_symbol(entries, u"porta simples", None) == ("p80", None)
+    assert modeling.validate_wall({"start": [0, 0], "end": [5, 0], "location_line": u"finish_interior"}) is None
+    assert modeling.validate_room({"point": [1, 1], "name": u"Cozinha", "number": u"01"}) is None
+    assert modeling.validate_room({"boundary": [[0, 0], [1, 0], [2, 0]]})
+    assert modeling.validate_hosted({"family": u"Janela", "wall_id": long(5), "offset_m": 1}) is None
+    assert modeling.wall_settings({}, {"top_level": u"Nível 2"})["top_level"] == u"Nível 2"
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -215,6 +281,9 @@ check("body token pairing", body_token_pairing)
 check("approval helpers", approval_helpers)
 check("self_update helpers", self_update_helpers)
 check("utils unicode", utils_unicode)
+check("sheet helpers", sheet_helpers)
+check("annotation/export helpers", annotation_export_helpers)
+check("modeling helpers", modeling_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

@@ -7,6 +7,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- **Dados descartados quando a resposta tinha mensagem** (bug herdado do upstream
+  em `tools/utils.py::format_response`): uma listagem cortada, como
+  `get_current_view_elements` com `limit`, chegava ao agente só com "Results
+  truncated…". Agora, se houver dados além da mensagem, a resposta vai inteira em JSON.
 - **Escrita com acento dava 400 antes do diálogo de aprovação**: o diálogo
   montava a prévia com `json.dumps`, que falha no IronPython 2 com texto como
   "Comentários". A prévia agora usa um formatador próprio (`preview_text`).
@@ -33,6 +37,23 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **9 tools novas** (33 no total), todas de escrita com `dry_run` padrão, tudo ou
+  nada, uma aprovação e um único Ctrl+Z por lote (máx. 200 itens):
+  - Folhas (spec 007): `create_sheets` (carimbo escolhido ou padrão) e
+    `place_views_on_sheets` (vistas e tabelas, no centro do carimbo ou em x/y em metros).
+  - Templates (spec 008): `apply_view_template` por nome, id ou tipo de vista,
+    com o template antes/depois de cada vista.
+  - Tags (spec 009): `tag_elements` etiqueta uma categoria inteira numa vista
+    (ambientes, áreas, portas, janelas...), pulando o que já tem tag.
+  - Exportação (spec 010, só leitura): `export_schedule` (linhas de uma tabela)
+    e `export_rooms` (número, nome, nível, área m², perímetro, volume, status),
+    em JSON ou CSV.
+  - Modelagem (spec 011): `create_walls`, `create_rooms` (por ponto ou polígono,
+    com tag e área em m²) e `place_hosted_families` (portas e janelas em paredes).
+    O dry run executa no Revit e desfaz, então também pega erros do próprio Revit;
+    avisos do Revit voltam em `warnings` sem abrir diálogo.
+- Botão **MCP > Bridge > Log**: mostra o final do `revit-mcp.log` (erros das
+  requisições) e do log do servidor remoto, já que o PC não tem terminal.
 - Diálogo de aprovação com **"Permitir tudo até fechar o Revit"**: depois disso
   as alterações e o Python rodam sem diálogo até o Revit fechar (fica só na
   memória). Só pode ser ligado no próprio diálogo; desliga em

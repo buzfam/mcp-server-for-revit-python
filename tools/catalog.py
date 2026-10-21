@@ -25,4 +25,13 @@ TOOL_DESCRIPTIONS = {
     "get_element_parameters": "Reads instance and optionally type parameters of elements, with raw and display values and editability.",
     "bulk_set_parameters": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
     "model_health_report": "Reads model health indicators: grouped warnings, imported CAD, in-place families, views off sheets, unused templates, links, groups and file size.",
+    "create_sheets": "Creates many sheets with a chosen or default title block in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
+    "place_views_on_sheets": "Places many views and schedules on sheets at given or title-block-centred positions in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
+    "apply_view_template": "Applies a view template to many views chosen by name, id or view type in one all-or-nothing transaction after review in Revit; dry_run (default) only previews before/after templates.",
+    "tag_elements": "Tags every element of a category in a view (rooms, doors, windows...) after review in Revit; dry_run (default) only counts what would be tagged.",
+    "export_schedule": "Reads a schedule's rows as JSON or CSV text.",
+    "export_rooms": "Lists rooms with number, name, level, area, perimeter, volume and placement status, as JSON or CSV.",
+    "create_walls": "Creates straight walls from start/end points in meters on a level, with type, height or top level, in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
+    "create_rooms": "Creates rooms at points or inside new room separation polygons (meters), with name, number and tags, and reports areas in m²; all or nothing after review in Revit; dry_run (default) only validates and previews.",
+    "place_hosted_families": "Places doors, windows or other wall-hosted families in walls by wall id and offset or nearest point (meters), with sill height and flips; all or nothing after review in Revit; dry_run (default) only validates and previews.",
 }

@@ -23,6 +23,14 @@ _Última atualização: 2026-10-20_
   (JSON da ponte, `json.dumps` no diálogo, URL da vista), categorias e parâmetros
   em português. Checklists marcados nas specs; o que falta está desmarcado lá.
   Botão de pareamento único (Connected/Disconnected) ainda não visto no Revit.
+- **2026-10-21: 9 tools novas (33 no total), não validadas no Revit**: folhas
+  (007), templates (008), tags (009), exportação (010) e modelagem (011:
+  paredes, ambientes, portas/janelas). Todas de escrita têm `dry_run` padrão,
+  tudo ou nada e um Ctrl+Z. Checklists de validação no fim de cada spec. Pontos
+  de maior risco: `IndependentTag.Create` e detecção de tags existentes, o
+  `FailuresPreprocessor` suprimir os diálogos de aviso no Revit 2024, e
+  `NewRoomBoundaryLines` numa vista que não é a ativa. Também: `format_response`
+  corrigido (dados não somem quando há mensagem) e botão **Bridge > Log**.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
   `model_health_report` (004), no `master`. **Nenhuma validada no Revit.**
@@ -48,13 +56,14 @@ _Última atualização: 2026-10-20_
 
 1. **Homologar no Windows** seguindo `docs/homologacao.md` (smoke + checklists).
    **Aguardando o usuário avisar** quando for testar no PC; até lá não há como validar.
-   Depois da homologação, corrigir o bug do `format_response` (ver Pendências),
-   já decidido pelo usuário para depois dos testes.
    Em seguida: **validar o modo remoto no Windows** (checklist da spec 006) quando o
    usuário instalar no PC, começando pelo botão **Remoto** (o usuário não terá
    terminal no PC): token DPAPI, instalação do `uv`, início em segundo plano,
    firewall, cliente em outra máquina.
-2. Próximas tools do roadmap (`FORK.md`): 005 folhas, 006 templates em lote, 007 tags, 008 exportar tabelas.
+2. **Validar no Revit as tools 007–011** (checklists nas specs). Sugestão: num
+   projeto com famílias de porta/janela e carimbo carregados, refazer a planta
+   da homologação com `create_walls` + `create_rooms` + `place_hosted_families`,
+   criar folhas, colocar a vista, etiquetar e exportar os ambientes.
 3. Validar 001–004 num Windows com Revit (checklist em cada spec), quando o
    usuário instalar no PC. Ponto de maior risco: `element_id_from_int`
    (overload Int64/Int32 do construtor de `ElementId` no IronPython).
@@ -83,10 +92,7 @@ _Última atualização: 2026-10-20_
 - O remote `origin` aponta para o fork pessoal `karlipegomes`; o `master` local
   rastreia `buzfam/master`, destino dos pushes.
 - Fábrica: confirmar no Windows como o pyRevit numera as portas de vários Revits no mesmo PC.
-- **Bug herdado do upstream** em `tools/utils.py::format_response`: se a resposta
-  tem `message`, devolve só a mensagem e descarta os dados. Ex.:
-  `get_current_view_elements` truncado chega ao LLM só com "Results truncated…".
-  O smoke marca isso como `warn`. Correção ainda não feita.
+- ~~Bug do `format_response`~~ corrigido em 2026-10-21.
 
 ## Ambiente
 
