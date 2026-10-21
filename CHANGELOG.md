@@ -7,6 +7,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- **Texto com acento chegava corrompido ao Revit** ("Comentários" virava
+  "ComentÃ¡rios"): o httpx manda o JSON em UTF-8 puro e o pyRevit Routes no
+  IronPython 2 o lê como Latin-1. A ponte agora envia JSON só ASCII (`\u00e1`).
 - `bulk_set_parameters` aceita o nome interno do parâmetro (`builtin` do
   `get_element_parameters`, ex.: `ALL_MODEL_INSTANCE_COMMENTS`), que vale em
   qualquer idioma do Revit; antes só o nome exibido ("Comentários" no Revit em português).

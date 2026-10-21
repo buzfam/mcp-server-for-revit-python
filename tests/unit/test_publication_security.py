@@ -210,6 +210,10 @@ async def test_revit_http_client_has_auth_and_ignores_proxies(paired_user, monke
     # pyRevit Routes hides headers from route handlers: the secret goes in the body.
     assert json.loads(observed[0].content) == {pairing.AUTH_FIELD: paired_user}
     assert json.loads(observed[1].content) == {"code": "1", pairing.AUTH_FIELD: paired_user}
+    # IronPython 2 reads raw UTF-8 bodies as Latin-1: accents must be \\u escapes.
+    assert await main.revit_post("/x/", {"parameter": u"Coment\u00e1rios"}) == {"status": "active"}
+    assert observed[2].content.isascii() and b"\\u00e1" in observed[2].content
+    assert json.loads(observed[2].content)["parameter"] == u"Coment\u00e1rios"
     for request in observed:
         assert "authorization" not in request.headers
         assert paired_user not in str(request.url)

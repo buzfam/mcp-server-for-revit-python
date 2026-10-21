@@ -7,6 +7,7 @@ import httpx
 import anyio
 from mcp.server.fastmcp import FastMCP, Image, Context
 import base64
+import json
 from typing import Optional, Dict, Any, Union
 from revit_mcp.pairing import authorization_body, validate_request
 from tools.http_security import PairingMiddleware
@@ -42,6 +43,17 @@ URL_HOST = "[::1]" if REVIT_HOST == "::1" else REVIT_HOST
 BASE_URL = f"http://{URL_HOST}:{REVIT_PORT}/revit_mcp"
 
 
+def _bridge_body(data=None) -> Dict[str, Any]:
+    """httpx request kwargs for a JSON body that IronPython 2 decodes correctly.
+
+    httpx sends raw UTF-8, which pyRevit Routes on IronPython 2 reads as Latin-1
+    ("Comentários" arrives garbled). ASCII-only JSON (\\u00e1 escapes) is read
+    the same way by every engine.
+    """
+    return {"content": json.dumps(authorization_body(data), ensure_ascii=True),
+            "headers": {"Content-Type": "application/json"}}
+
+
 async def revit_get(endpoint: str, ctx: Context = None, **kwargs) -> Union[Dict, str]:
     """Simple GET request to Revit API"""
     return await _revit_call("GET", endpoint, ctx=ctx, **kwargs)
@@ -56,7 +68,7 @@ async def revit_image(endpoint: str, ctx: Context = None) -> Union[Image, str]:
     """GET request that returns an Image object"""
     try:
         async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
-            response = await client.request("GET", f"{BASE_URL}{endpoint}", json=authorization_body())
+            response = await client.request("GET", f"{BASE_URL}{endpoint}", **_bridge_body())
             
             if response.status_code == 200:
                 data = response.json()
@@ -81,9 +93,9 @@ async def _revit_call(method: str, endpoint: str, data: Dict = None, ctx: Contex
             # pyRevit Routes hides headers from route handlers, so the pairing
             # secret travels in the JSON body of every call, GET included.
             if method == "GET":
-                response = await client.request("GET", url, params=params, json=authorization_body())
+                response = await client.request("GET", url, params=params, **_bridge_body())
             else:  # POST
-                response = await client.post(url, json=authorization_body(data))
+                response = await client.post(url, **_bridge_body(data))
 
             return response.json() if response.status_code == 200 else f"Error: {response.status_code} - {response.text}"
     except httpx.TimeoutException:
