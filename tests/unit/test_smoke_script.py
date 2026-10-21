@@ -9,6 +9,7 @@ from scripts import smoke
     ('{"status": "success"}', smoke.PASS),
     ("=== REVIT STATUS ===\nStatus: active", smoke.PASS),
     ("Error: Request timed out after 30 seconds.", smoke.FAIL),
+    ("Error: No elements found in category 'Walls'", smoke.WARN),
     ("=== ERROR DETAILS ===\nStatus: unknown\nError: boom", smoke.FAIL),
     ("Error: Use Revit's MCP > Bridge button (it shows Disconnected) to consent and pair this Windows user.",
      smoke.FAIL),

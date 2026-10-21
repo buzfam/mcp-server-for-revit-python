@@ -69,6 +69,8 @@ def classify(text):
     """(status, detail) for a tool's text output."""
     if "MCP > Bridge" in text or (text.startswith("Error") and "pairing" in text.lower()):
         return FAIL, "Revit not paired on that PC: click MCP > Bridge (Disconnected)"
+    if "No elements found in category" in text:
+        return WARN, "category exists but the model has none of it (empty model?)"
     if text.startswith("Error") or "=== ERROR DETAILS ===" in text:
         first = next((line for line in text.splitlines() if line.startswith("Error")), text)
         return FAIL, first[:200]
