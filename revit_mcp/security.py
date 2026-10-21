@@ -41,7 +41,7 @@ def _quote(text):
 def preview_text(data, indent=0):
     """JSON-like text of a request for the review dialog.
 
-    json.dumps cannot be used: on IronPython 2 it raises UnicodeEncodeError for
+    json.dumps cannot be used: on IronPython 2 it raises UnicodeDecodeError for
     accented text ("Comentários"), which turned every accented write into a 400.
     """
     pad = u"  " * (indent + 1)
