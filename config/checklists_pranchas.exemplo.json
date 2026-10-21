@@ -1,0 +1,49 @@
+{
+  "_comentario": "EXEMPLO, substituir pelos checklists do escritório. No primeiro clique em MCP > Conferir > Checar pranchas este arquivo é copiado para %APPDATA%\\RevitMCPPython\\checklists_pranchas.json; edite a cópia (o botão Atualizar não mexe nela). Shift+clique escolhe outro arquivo. Formato: docs/specs/013-check-sheets.md. Chaves que começam com _ são comentários e são ignoradas.",
+  "generic": true,
+  "only_problems": false,
+  "checklists": [
+    {"name": "Planta de layout", "match": {"name_regex": "layout"},
+     "required_views": [{"view_type": "FloorPlan", "name_regex": "layout"}],
+     "required_legends": ["legenda.*layout|mobili"],
+     "allowed_scales": [50, 75],
+     "title_block_params": ["Desenhado por", "SHEET_ISSUE_DATE", "Cliente"],
+     "require_revision": true,
+     "manual": ["cotas gerais dos ambientes", "nomes e áreas dos ambientes legíveis"]},
+
+    {"name": "Planta demolir/construir", "match": {"name_regex": "demoli|construir"},
+     "required_views": [{"view_type": "FloorPlan", "name_regex": "demoli|construir"}],
+     "required_legends": ["legenda.*(demolir|construir)"],
+     "allowed_scales": [50],
+     "title_block_params": ["Desenhado por", "SHEET_ISSUE_DATE"],
+     "require_revision": true,
+     "manual": ["hachuras de demolir e construir conferidas", "paredes existentes no filtro de fase certo"]},
+
+    {"name": "Planta de forro", "match": {"name_regex": "forro"},
+     "required_views": [{"view_type": "CeilingPlan"}],
+     "required_legends": ["legenda.*forro"],
+     "allowed_scales": [50],
+     "require_revision": true,
+     "manual": ["cotas de nível do forro", "luminárias alinhadas ao forro"]},
+
+    {"name": "Planta elétrica", "match": {"name_regex": "el[eé]tric|pontos"},
+     "required_views": [{"view_type": "FloorPlan", "name_regex": "el[eé]tric|pontos"}],
+     "required_legends": ["legenda.*(el[eé]tric|pontos)"],
+     "allowed_scales": [50],
+     "require_revision": true,
+     "manual": ["alturas dos pontos indicadas", "circuitos conforme projeto complementar"]},
+
+    {"name": "Cortes", "match": {"name_regex": "^cortes?"},
+     "required_views": [{"view_type": "Section", "min": 2}],
+     "allowed_scales": [50],
+     "require_revision": true,
+     "manual": ["cotas verticais e níveis", "pé-direito de todos os ambientes"]},
+
+    {"name": "Detalhes", "match": {"name_regex": "detalhe"},
+     "required_views": [{"view_type": "Detail"}],
+     "allowed_scales": [5, 10, 20, 25],
+     "min_viewports": 1, "max_viewports": 8,
+     "require_revision": true,
+     "manual": ["materiais e especificações nas notas"]}
+  ]
+}

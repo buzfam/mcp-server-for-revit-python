@@ -1,0 +1,3 @@
+title: Checar pranchas
+tooltip: "Confere cada folha com o checklist do tipo de prancha (vistas, tabelas, legendas, escalas, carimbo, revisão) e lista o que conferir a olho. Não usa IA e não altera o modelo. Shift+clique escolhe outro arquivo de checklists."
+help_url: https://github.com/buzfam/mcp-server-for-revit-python/blob/master/docs/specs/013-check-sheets.md

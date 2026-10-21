@@ -1,0 +1,3 @@
+title: Auditar template
+tooltip: "Inventário do template ou projeto aberto (modelos de vista, filtros, famílias, materiais, folhas...), o que está sem uso e a prévia do Limpar não utilizados. Não apaga nada e não usa IA. Pode salvar o relatório em JSON."
+help_url: https://github.com/buzfam/mcp-server-for-revit-python/blob/master/docs/specs/012-audit-template.md

@@ -1,0 +1,3 @@
+title: Checar materiais
+tooltip: "Confere os materiais do mobiliário antes do render (nome no padrão OBJETO_MATERIAL_PARTE_NN, repetidos, genéricos, só material da categoria). Não usa IA e não altera o modelo. Shift+clique confere só o que aparece na vista ativa."
+help_url: https://github.com/buzfam/mcp-server-for-revit-python/blob/master/docs/specs/014-check-render-materials.md

@@ -1,0 +1,5 @@
+layout:
+  - ChecarPranchas
+  - ChecarMateriais
+  - EmitirPDF
+  - AuditarTemplate

@@ -547,6 +547,45 @@ def parameter_number_helpers():
     assert parameters.project_decimal_symbol(object()) == "."
 
 
+def ribbon_report_helpers():
+    import io
+    from revit_mcp import ribbon_reports as rr
+    from revit_mcp import sheet_checks
+    path = os.path.join(ROOT, "config", "checklists_pranchas.exemplo.json")
+    with io.open(path, encoding="utf-8-sig") as stream:
+        body, error = rr.load_checklists(stream.read())
+    assert error is None, error
+    options, error, errors = sheet_checks.parse_options(body)
+    assert error is None, (error, errors)
+    assert rr.load_checklists(u"{x")[1]
+    text = rr.as_text(rr.sheet_report({
+        "summary": {"sheets_checked": 1, "sheets_total": 1, "missing": 1},
+        "sheets": [{"id": long(7), "number": u"A-1", "name": u"Planta T\u00e9rreo", "rule": None,
+                    "status": "missing", "problems": [{"check": "scale", "detail": u"1:75"}],
+                    "manual_checks": [u"cotas"]}]}, link=lambda i: u"#{}".format(i)))
+    assert u"#7 | A-1 | Planta T\u00e9rreo" in text and u"Escala | 1:75" in text
+    message, details = rr.pdf_plan_text({"folder": u"C:\\x", "files": [
+        {"file": u"a.pdf", "sheets": [u"A-1"], "exists": True}]})
+    assert message == u"Emitir 1 PDF de 1 folha?" and u"J\u00c1 EXISTE" in details
+    plan = {"status": "dry_run", "folder": u"C:\\x",
+            "files": [{"file": u"a.pdf", "sheets": [u"A-1"], "exists": True}]}
+    assert rr.is_plan(plan) and rr.needs_overwrite(plan)
+    approve = rr.replacement_guard(rr.replace_paths(plan))
+    assert approve(u"Export", {"_will_replace": rr.replace_paths(plan)}) is None
+    assert approve(u"Export", {"_will_replace": [u"C:\\x\\b.pdf"]}).status == 409
+    assert rr.is_run_result({"status": "success", "files": [], "exported": long(0)})
+    assert u"bloqueado" in rr.pdf_error_text({"error": u"file in use or locked: a.pdf"})
+    assert rr.material_view_error("DrawingSheet", False) and \
+        rr.material_view_error("ThreeD", False) is None
+    folder = tempfile.mkdtemp()
+    try:
+        path, created, error = rr.prepare_checklists(folder, ROOT)
+        assert error is None and created and os.path.isfile(path), error
+        assert rr.prepare_checklists(folder, ROOT)[1] is False
+    finally:
+        shutil.rmtree(folder)
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -575,6 +614,7 @@ check("material check review helpers", material_check_review_helpers)
 check("quantity review helpers", quantity_review_helpers)
 check("finish element helpers", finish_element_helpers)
 check("parameters number helpers", parameter_number_helpers)
+check("ribbon report helpers", ribbon_report_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

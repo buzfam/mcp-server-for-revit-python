@@ -1,0 +1,3 @@
+title: Emitir PDF
+tooltip: "Exporta folhas em PDF com o nome do escritório (projeto, folha, revisão, data) e grava emissao.json. Mostra o plano antes e só substitui arquivos se você confirmar. Não usa IA."
+help_url: https://github.com/buzfam/mcp-server-for-revit-python/blob/master/docs/specs/017-export-sheets-pdf.md
