@@ -161,6 +161,12 @@ def body_token_pairing():
         pairing.get_token = original
 
 
+def self_update_helpers():
+    from revit_mcp import self_update
+    assert self_update.commit_lines([u"feat: \u00e1\nbody"]) == u"\u2022 feat: \u00e1"
+    assert "1234567" in self_update.result_message("1234567890", "abcdefabc", True, True, "")
+
+
 def utils_unicode():
     from revit_mcp.utils import normalize_string
     assert normalize_string(u"T\u00e9rreo ") == u"T\u00e9rreo"
@@ -184,6 +190,7 @@ check("remote_token DPAPI round trip", remote_token_dpapi)
 check("parameters helpers", parameter_helpers)
 check("health helpers", health_helpers)
 check("body token pairing", body_token_pairing)
+check("self_update helpers", self_update_helpers)
 check("utils unicode", utils_unicode)
 
 if failures:

@@ -1,0 +1,3 @@
+title: Atualizar
+tooltip: "Baixa a versão mais nova do Revit MCP, reinicia o servidor remoto e recarrega o pyRevit."
+help_url: https://github.com/buzfam/mcp-server-for-revit-python/blob/master/CHANGELOG.md

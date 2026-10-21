@@ -8,7 +8,8 @@ Ao terminar, envie o `smoke-report.json` e as anotações dos testes manuais
 para quem vai corrigir (ou cole no Claude: ele marca os checklists das specs).
 
 ## 0. Preparar o PC do Revit
-1. Instale/atualize a extensão (pyRevit > Extensions, ou `git pull` + *Reload*).
+1. Instale a extensão (pyRevit > Extensions). Para atualizar depois: **MCP > Update >
+   Atualizar** (reinicia o servidor remoto e recarrega o pyRevit sozinho).
 2. Abra um modelo de teste (pode ser `tests/test.rvt`).
 3. **MCP > Bridge**: o botão deve mostrar **Connected**; se mostrar
    **Disconnected**, clique e conecte (pareamento).

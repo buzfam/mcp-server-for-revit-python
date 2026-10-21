@@ -29,6 +29,11 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   com o token guardado no request para rotas que autorizam duas vezes
   (`bulk_set_parameters`).
 
+### Adicionado
+- Botão **MCP > Update > Atualizar**: confere se há versão nova no git, mostra
+  os commits, atualiza a extensão, reinicia o servidor remoto (se estiver
+  ligado) e recarrega o pyRevit. Sem terminal e sem passar por pyRevit > Extensions.
+
 ### Alterado
 - **Connect e Disconnect viraram um botão só**, que mostra o estado atual:
   **Connected** (ícone verde) ou **Disconnected** (vermelho). Desconectado, o
