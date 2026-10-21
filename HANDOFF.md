@@ -14,7 +14,10 @@ _Última atualização: 2026-10-20_
   não repassa cabeçalhos (pyRevit #3765). Corrigido mandando o segredo no corpo
   JSON (`revit_mcp_auth`). **Revalidado no PC: 15 ok**, 1 aviso (nada
   selecionado, modelo vazio), 2 falhas corrigidas em seguida (vista com acento e
-  categoria em inglês num Revit em português); falta rodar o smoke de novo.
+  categoria em inglês num Revit em português). **Smoke após as correções: 16 ok,
+  0 falhas reais** (vista "Nível 1" exportada; "Walls" achada como Paredes; só
+  avisos de modelo vazio). Faltam: parâmetros com seleção, ferramentas de escrita
+  com diálogo de aprovação e checklists manuais das specs.
   Botão de pareamento único (Connected/Disconnected) ainda não visto no Revit.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
