@@ -52,7 +52,7 @@ _Última atualização: 2026-10-20_
   funcionar com o IP direto.
 - Guias de agente criados: `AGENTS.md`, `CLAUDE.md`, `FORK.md`, specs 001–004,
   skills `add-mcp-tool`, `sync-upstream` e `session-handoff`.
-- Testes (macOS): `185 passed, 10 skipped`; manifest confere 24 tools.
+- Testes (macOS, 2026-10-21): `669 passed, 10 skipped`; manifest confere 38 tools; CI Windows + IronPython 2.7.12 verde em `6c20134`.
 - CI no Windows (GitHub Actions, 2026-10-20): `190 passed` em Python 3.11 e 3.13
   (inclui os testes de DPAPI) e **IronPython 2.7.12 ok**: 21 arquivos do lado
   Revit compilam, helpers puros rodam com semântica Py2 e o token remoto faz a

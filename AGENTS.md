@@ -49,7 +49,7 @@ uv run --frozen python scripts/smoke.py --url http://<IP>:8000/mcp --token <TOKE
 # funções puras, acrescente uma checagem em scripts/ironpython_check.py.
 ```
 
-Baseline em 2026-10-20 (macOS): `97 passed, 9 skipped`; manifest com 20 tools.
+Baseline em 2026-10-21 (macOS): `669 passed, 10 skipped`; manifest com 38 tools.
 
 ## Regras obrigatórias
 
