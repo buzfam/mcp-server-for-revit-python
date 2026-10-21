@@ -44,6 +44,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   atualizada mas o servidor rodar uma versão anterior, o Atualizar o reinicia.
 
 ### Alterado
+- Erros das rotas (inclusive código do agente que falha) não abrem mais a janela
+  de log do pyRevit: o logger `revit_mcp` não propaga e grava em
+  `%LOCALAPPDATA%\RevitMCPPython\revit-mcp.log`. O agente continua recebendo o
+  erro na resposta.
 - **Connect e Disconnect viraram um botão só**, que mostra o estado atual:
   **Connected** (ícone verde) ou **Disconnected** (vermelho). Desconectado, o
   clique conecta; conectado, oferece *Desconectar* ou *Trocar o segredo*. O título
