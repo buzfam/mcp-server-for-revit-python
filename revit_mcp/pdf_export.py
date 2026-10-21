@@ -810,6 +810,178 @@ def _bad(message, status=400, **extra):
     return routes.make_response(data=data, status=status)
 
 
+def issue_pdfs(doc, data, approve):
+    """Plan (dry_run, the default) or run one PDF issue for a request body.
+
+    approve(action, preview) is called once before anything is written, with
+    the readable action and the resolved folder/files; it returns None to go
+    on or a response to stop. The route passes the MCP approval dialog; the
+    ribbon button (Conferir > Emitir PDF) asks the user itself before calling.
+    Returns a routes response (.data and .status)."""
+    error = validate_options(data)
+    if error:
+        return _bad(error)
+    if not hasattr(DB, "PDFExportOptions"):
+        return _bad("Native PDF export needs Revit 2022 or newer", 501)
+    paper = data.get("paper_format", "default")
+    paper_name = paper_format_name(paper, _enum_names(DB.ExportPaperFormat))
+    if paper_name is None:
+        return _bad(u"Unknown paper_format '{}'; use 'default' (sheet size) or an "
+                    u"ExportPaperFormat name like ISO_A1".format(paper))
+    dry_run = data.get("dry_run", True) is not False
+    combine = data.get("combine", False) is True
+    overwrite = data.get("overwrite", False) is True
+    pattern = data.get("name_pattern", DEFAULT_PATTERN)
+
+    if data.get("issued_at") is not None:
+        now = parse_issued_at(data["issued_at"])[0]
+    else:
+        now = datetime.datetime.now().replace(microsecond=0)
+    issued_at = now.isoformat()
+    project = _project_info(doc)
+    if data.get("folder") is not None:
+        folder, error = validate_folder(data["folder"], _blocked_folders())
+    else:
+        folder, error = validate_folder(
+            default_folder(_documents_folder(),
+                           project["number"] or project["name"] or project["title"], now),
+            _blocked_folders())
+    if error is None:
+        error = _dotnet_folder_error(folder)
+    if error:
+        return _bad(error)
+    if os.path.exists(folder) and not os.path.isdir(folder):
+        return _bad(u"{} exists and is not a folder".format(folder))
+
+    sheets, skipped, denial = _select_sheets(doc, data)
+    if denial is not None:
+        return denial
+    if not sheets:
+        return _bad("No printable sheet to export", skipped=skipped)
+    entries = [_sheet_entry(sheet) for sheet in sheets]
+    planned, renamed = plan_files(entries, pattern, project,
+                                  now.strftime("%Y-%m-%d"), combine)
+
+    # The options must be accepted before anything is written.
+    _, option_errors, option_warnings = build_pdf_options(
+        data, paper_name, planned[0][0])
+    if option_errors:
+        return _bad("This Revit version rejected required PDF options; nothing was "
+                    "exported", 501, details=option_errors)
+
+    targets = [name + u".pdf" for name, _ in planned]
+    too_long = [t for t in targets if len(os.path.join(folder, t)) > MAX_PATH_LENGTH]
+    if too_long:
+        return _bad("{} path(s) longer than {} characters; use a shorter folder or "
+                    "name_pattern".format(len(too_long), MAX_PATH_LENGTH),
+                    files=too_long[:20])
+    directories = [t for t in targets if os.path.isdir(os.path.join(folder, t))]
+    if directories:
+        return _bad("{} planned file name(s) are folders; nothing was exported".format(
+            len(directories)), 409, conflicts=directories)
+    existing = [t for t in targets if os.path.isfile(os.path.join(folder, t))]
+
+    plan = []
+    for name, indexes in planned:
+        revision = common_revision(entries[i]["revision"] for i in indexes)
+        plan.append({"file": name + u".pdf",
+                     "sheets": [entries[i]["sheet_number"] for i in indexes],
+                     "revision": revision or None,
+                     "exists": name + u".pdf" in existing})
+    result = {"folder": folder, "folder_exists": os.path.isdir(folder),
+              "issued_at": issued_at, "combine": combine,
+              "manifest": os.path.join(folder, MANIFEST_NAME), "files": plan,
+              "skipped": skipped}
+    if renamed:
+        result["renamed_to_avoid_duplicates"] = [plan[i]["file"] for i in renamed]
+    if option_warnings:
+        result["warnings"] = sorted(set(option_warnings))
+    too_many = not combine and len(planned) > MAX_EXPORT_FILES
+
+    if dry_run:
+        notes = []
+        if existing and not overwrite:
+            notes.append("{} file(s) already exist; the real run needs "
+                         "overwrite=true".format(len(existing)))
+        if too_many:
+            notes.append("A real run exports at most {} separate PDFs per call; "
+                         "split the sheets".format(MAX_EXPORT_FILES))
+        if notes:
+            result["warning"] = u" ".join(notes)
+        result["status"] = "dry_run"
+        result["message"] = (
+            "Dry run: {} PDF file(s) for {} sheet(s) planned. Nothing was written; call "
+            "again with dry_run=false and the same folder and issued_at.").format(
+                len(planned), len(sheets))
+        return routes.make_response(data=result)
+
+    if too_many:
+        return _bad("{} separate PDFs planned; a real run exports at most {} per call. "
+                    "Split the sheets or use combine=true.".format(
+                        len(planned), MAX_EXPORT_FILES))
+    if existing and not overwrite:
+        result.update({"status": "error", "existing": existing,
+                       "error": "{} file(s) already exist in the folder; nothing was "
+                                "exported. Use overwrite=true or another folder.".format(
+                                    len(existing))})
+        return routes.make_response(data=result, status=409)
+
+    # The review dialog shows the resolved target, not only the request.
+    preview = {"_resolved_folder": folder, "_files": targets}
+    if existing:
+        preview["_will_replace"] = [os.path.join(folder, t) for t in existing]
+    denial = approve(approval_action(len(targets), folder, len(existing)), preview)
+    if denial is not None:
+        return denial
+
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+    # A file that appeared while the dialog was open was not approved for replacing.
+    appeared = [t for t in targets if t not in existing
+                and os.path.exists(os.path.join(folder, t))]
+    if appeared:
+        return _bad("{} file(s) appeared in the folder while the approval dialog was "
+                    "open; nothing was exported".format(len(appeared)), 409,
+                    existing=appeared)
+    existing = [t for t in existing if os.path.isfile(os.path.join(folder, t))]
+    # Backups are stamped with the real clock: issued_at may repeat.
+    stamp = datetime.datetime.now()
+    moved, error = backup_existing(folder, existing, stamp)
+    if error:
+        return _bad(error, 423)
+
+    warnings = list(option_warnings)
+    files, errors = export_sheets(doc, sheets, entries, planned, folder, data,
+                                  paper_name, warnings)
+    exported = set(f["file"] for f in files)
+    not_restored = restore_backups(folder, moved, keep_names=exported)
+    if not_restored:
+        warnings.append(u"Could not restore the previous version of: {}".format(
+            u", ".join(not_restored)))
+
+    manifest = None
+    if files:
+        record = manifest_record(project, _user_name(), _revit_version(doc), issued_at,
+                                 folder, combine, files, skipped, errors)
+        manifest, manifest_warnings = write_manifest(folder, record, stamp)
+        warnings.extend(manifest_warnings)
+
+    result = {"status": "success" if not errors else "error", "folder": folder,
+              "issued_at": issued_at, "combine": combine, "manifest": manifest,
+              "history": os.path.join(folder, HISTORY_NAME) if files else None,
+              "files": files, "exported": len(exported), "replaced": sorted(
+                  name for name, _ in moved if name in exported),
+              "skipped": skipped, "errors": errors}
+    if warnings:
+        result["warnings"] = sorted(set(warnings))
+    if errors:
+        result["error"] = ("{} of {} PDF file(s) failed; the others were written and "
+                           "replaced files that failed were restored").format(
+                               len(errors), len(planned))
+    return routes.make_response(data=result)
+
+
+
 def register_pdf_export_routes(api):
     """Register PDF export routes with the API"""
 
@@ -843,171 +1015,13 @@ def register_pdf_export_routes(api):
             data = _parse_body(request)
             if data is None:
                 return _bad("The request body must be a JSON object")
-            error = validate_options(data)
-            if error:
-                return _bad(error)
-            if not hasattr(DB, "PDFExportOptions"):
-                return _bad("Native PDF export needs Revit 2022 or newer", 501)
-            paper = data.get("paper_format", "default")
-            paper_name = paper_format_name(paper, _enum_names(DB.ExportPaperFormat))
-            if paper_name is None:
-                return _bad(u"Unknown paper_format '{}'; use 'default' (sheet size) or an "
-                            u"ExportPaperFormat name like ISO_A1".format(paper))
-            dry_run = data.get("dry_run", True) is not False
-            combine = data.get("combine", False) is True
-            overwrite = data.get("overwrite", False) is True
-            pattern = data.get("name_pattern", DEFAULT_PATTERN)
 
-            if data.get("issued_at") is not None:
-                now = parse_issued_at(data["issued_at"])[0]
-            else:
-                now = datetime.datetime.now().replace(microsecond=0)
-            issued_at = now.isoformat()
-            project = _project_info(doc)
-            if data.get("folder") is not None:
-                folder, error = validate_folder(data["folder"], _blocked_folders())
-            else:
-                folder, error = validate_folder(
-                    default_folder(_documents_folder(),
-                                   project["number"] or project["name"] or project["title"], now),
-                    _blocked_folders())
-            if error is None:
-                error = _dotnet_folder_error(folder)
-            if error:
-                return _bad(error)
-            if os.path.exists(folder) and not os.path.isdir(folder):
-                return _bad(u"{} exists and is not a folder".format(folder))
+            def approve(action, preview):
+                if isinstance(request.data, dict):
+                    request.data.update(preview)
+                return authorize_request(request, action=action)
 
-            sheets, skipped, denial = _select_sheets(doc, data)
-            if denial is not None:
-                return denial
-            if not sheets:
-                return _bad("No printable sheet to export", skipped=skipped)
-            entries = [_sheet_entry(sheet) for sheet in sheets]
-            planned, renamed = plan_files(entries, pattern, project,
-                                          now.strftime("%Y-%m-%d"), combine)
-
-            # The options must be accepted before anything is written.
-            _, option_errors, option_warnings = build_pdf_options(
-                data, paper_name, planned[0][0])
-            if option_errors:
-                return _bad("This Revit version rejected required PDF options; nothing was "
-                            "exported", 501, details=option_errors)
-
-            targets = [name + u".pdf" for name, _ in planned]
-            too_long = [t for t in targets if len(os.path.join(folder, t)) > MAX_PATH_LENGTH]
-            if too_long:
-                return _bad("{} path(s) longer than {} characters; use a shorter folder or "
-                            "name_pattern".format(len(too_long), MAX_PATH_LENGTH),
-                            files=too_long[:20])
-            directories = [t for t in targets if os.path.isdir(os.path.join(folder, t))]
-            if directories:
-                return _bad("{} planned file name(s) are folders; nothing was exported".format(
-                    len(directories)), 409, conflicts=directories)
-            existing = [t for t in targets if os.path.isfile(os.path.join(folder, t))]
-
-            plan = []
-            for name, indexes in planned:
-                revision = common_revision(entries[i]["revision"] for i in indexes)
-                plan.append({"file": name + u".pdf",
-                             "sheets": [entries[i]["sheet_number"] for i in indexes],
-                             "revision": revision or None,
-                             "exists": name + u".pdf" in existing})
-            result = {"folder": folder, "folder_exists": os.path.isdir(folder),
-                      "issued_at": issued_at, "combine": combine,
-                      "manifest": os.path.join(folder, MANIFEST_NAME), "files": plan,
-                      "skipped": skipped}
-            if renamed:
-                result["renamed_to_avoid_duplicates"] = [plan[i]["file"] for i in renamed]
-            if option_warnings:
-                result["warnings"] = sorted(set(option_warnings))
-            too_many = not combine and len(planned) > MAX_EXPORT_FILES
-
-            if dry_run:
-                notes = []
-                if existing and not overwrite:
-                    notes.append("{} file(s) already exist; the real run needs "
-                                 "overwrite=true".format(len(existing)))
-                if too_many:
-                    notes.append("A real run exports at most {} separate PDFs per call; "
-                                 "split the sheets".format(MAX_EXPORT_FILES))
-                if notes:
-                    result["warning"] = u" ".join(notes)
-                result["status"] = "dry_run"
-                result["message"] = (
-                    "Dry run: {} PDF file(s) for {} sheet(s) planned. Nothing was written; call "
-                    "again with dry_run=false and the same folder and issued_at.").format(
-                        len(planned), len(sheets))
-                return routes.make_response(data=result)
-
-            if too_many:
-                return _bad("{} separate PDFs planned; a real run exports at most {} per call. "
-                            "Split the sheets or use combine=true.".format(
-                                len(planned), MAX_EXPORT_FILES))
-            if existing and not overwrite:
-                result.update({"status": "error", "existing": existing,
-                               "error": "{} file(s) already exist in the folder; nothing was "
-                                        "exported. Use overwrite=true or another folder.".format(
-                                            len(existing))})
-                return routes.make_response(data=result, status=409)
-
-            # The review dialog shows the resolved target, not only the request.
-            if isinstance(request.data, dict):
-                request.data["_resolved_folder"] = folder
-                request.data["_files"] = targets
-                if existing:
-                    request.data["_will_replace"] = [os.path.join(folder, t) for t in existing]
-            denial = authorize_request(
-                request, action=approval_action(len(targets), folder, len(existing)))
-            if denial is not None:
-                return denial
-
-            if not os.path.isdir(folder):
-                os.makedirs(folder)
-            # A file that appeared while the dialog was open was not approved for replacing.
-            appeared = [t for t in targets if t not in existing
-                        and os.path.exists(os.path.join(folder, t))]
-            if appeared:
-                return _bad("{} file(s) appeared in the folder while the approval dialog was "
-                            "open; nothing was exported".format(len(appeared)), 409,
-                            existing=appeared)
-            existing = [t for t in existing if os.path.isfile(os.path.join(folder, t))]
-            # Backups are stamped with the real clock: issued_at may repeat.
-            stamp = datetime.datetime.now()
-            moved, error = backup_existing(folder, existing, stamp)
-            if error:
-                return _bad(error, 423)
-
-            warnings = list(option_warnings)
-            files, errors = export_sheets(doc, sheets, entries, planned, folder, data,
-                                          paper_name, warnings)
-            exported = set(f["file"] for f in files)
-            not_restored = restore_backups(folder, moved, keep_names=exported)
-            if not_restored:
-                warnings.append(u"Could not restore the previous version of: {}".format(
-                    u", ".join(not_restored)))
-
-            manifest = None
-            if files:
-                record = manifest_record(project, _user_name(), _revit_version(doc), issued_at,
-                                         folder, combine, files, skipped, errors)
-                manifest, manifest_warnings = write_manifest(folder, record, stamp)
-                warnings.extend(manifest_warnings)
-
-            result = {"status": "success" if not errors else "error", "folder": folder,
-                      "issued_at": issued_at, "combine": combine, "manifest": manifest,
-                      "history": os.path.join(folder, HISTORY_NAME) if files else None,
-                      "files": files, "exported": len(exported), "replaced": sorted(
-                          name for name, _ in moved if name in exported),
-                      "skipped": skipped, "errors": errors}
-            if warnings:
-                result["warnings"] = sorted(set(warnings))
-            if errors:
-                result["error"] = ("{} of {} PDF file(s) failed; the others were written and "
-                                   "replaced files that failed were restored").format(
-                                       len(errors), len(planned))
-            return routes.make_response(data=result)
-
+            return issue_pdfs(doc, data, approve)
         except Exception as e:
             logger.error("Error in export_sheets_pdf route: %s", e)
             return routes.make_response(data={"error": str(e)}, status=500)

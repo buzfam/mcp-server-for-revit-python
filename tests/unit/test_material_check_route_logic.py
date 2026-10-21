@@ -431,3 +431,16 @@ def test_route_flags_mesh_only_geometry(revit_modules, route):
     assert data["summary"]["mesh_only_types"] == 1
     problem = data["problems"][0]
     assert problem["rule"] == "single_material" and "meshes" in problem["note"]
+
+
+# ---- entry point shared with the ribbon button (Conferir > Checar materiais) ----
+
+def test_run_material_check_matches_the_route(revit_modules, route):
+    doc = FakeDoc(revit_modules.categories)
+    result, error, status = revit_modules.run_material_check(doc, {})
+    assert error is None and status == 200
+    assert result == route({}, d=doc)["data"]
+    assert revit_modules.run_material_check(doc, {"limit": 0})[1:] == (
+        "limit must be between 1 and 1000", 400)
+    _, error, status = revit_modules.run_material_check(doc, {"only_visible_in_view": u"Nenhuma"})
+    assert status == 404 and u"Nenhuma" in error

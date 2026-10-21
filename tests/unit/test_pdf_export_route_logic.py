@@ -531,3 +531,40 @@ def test_same_issued_at_twice_keeps_both_manifests(route, doc):
     names = os.listdir(route.out)
     assert len([n for n in names if n.startswith(u"emissao.json.bak-")]) == 1
     assert len(open(data["history"]).read().splitlines()) == 2
+
+
+# ---- entry point shared with the ribbon button (Conferir > Emitir PDF) ----
+
+def test_issue_pdfs_runs_without_a_request(route, pdf, doc):
+    calls = []
+
+    def approve(action, preview):
+        calls.append((action, preview))
+        return None
+
+    plan = pdf.issue_pdfs(doc, {"sheets": [u"A-101"], "name_pattern": u"{sheet_number}"}, approve)
+    assert plan.data["status"] == "dry_run" and calls == [] and doc.exports == []
+    done = pdf.issue_pdfs(doc, {"sheets": [u"A-101"], "name_pattern": u"{sheet_number}",
+                                "dry_run": False, "folder": plan.data["folder"],
+                                "issued_at": plan.data["issued_at"]}, approve)
+    assert done.data["status"] == "success" and done.data["exported"] == 1
+    assert calls[0][0] == u"Export 1 PDF(s) to {}".format(route.out)
+    assert calls[0][1]["_files"] == [u"A-101.pdf"] and "_will_replace" not in calls[0][1]
+
+
+def test_issue_pdfs_stops_when_approve_refuses(route, pdf, doc):
+    route.out.mkdir()
+    (route.out / u"A-101.pdf").write_bytes(b"old")
+    stop = SimpleNamespace(data={"error": "recusado"}, status=403)
+    seen = []
+
+    def approve(action, preview):
+        seen.append(preview["_will_replace"])
+        return stop
+
+    response = pdf.issue_pdfs(doc, {"sheets": [u"A-101"], "name_pattern": u"{sheet_number}",
+                                    "dry_run": False, "overwrite": True}, approve)
+    assert response is stop and doc.exports == []
+    assert seen == [[os.path.join(str(route.out), u"A-101.pdf")]]
+    assert (route.out / u"A-101.pdf").read_bytes() == b"old"
+    assert route.approvals == []  # the MCP approval dialog is not involved

@@ -498,6 +498,54 @@ def material_names(doc, records):
     return names
 
 
+def run_material_check(doc, data):
+    """The whole check for one request body (also used by the ribbon button
+    Conferir > Checar materiais). Returns (result, error, status)."""
+    options, error = parse_options(data)
+    if error:
+        return None, error, 400
+    categories, error = _resolve_categories(doc, options["categories"])
+    if error:
+        return None, error, 400
+    view = None
+    view_ref = data.get("only_visible_in_view")
+    if view_ref is not None:
+        view, error = _resolve_view(doc, view_ref)
+        if error:
+            return None, error, 404
+        if view.IsTemplate:
+            return None, "only_visible_in_view cannot be a view template", 400
+
+    records, elements = collect_type_records(doc, categories, view)
+    names = material_names(doc, records)
+    summary, problems = check_records(
+        records, names, options["regex"],
+        options["max_families_per_material"], options["min_materials_per_family"])
+    returned, truncated = cap(problems, options["limit"])
+    used = set()
+    for record in records:
+        used.update(effective_materials(record))
+    result = {
+        "status": "success",
+        "document": normalize_string(doc.Title),
+        "categories": [normalize_string(c.Name) for c in categories],
+        "name_pattern": options["regex"].pattern,
+        "elements_checked": elements,
+        "types_checked": len(records),
+        "materials_checked": len(used),
+        "summary": summary,
+        "problems_total": len(problems),
+        "returned": len(returned),
+        "truncated": truncated,
+        "problems": returned,
+        "method": "one representative instance per family type (with its nested "
+                  "shared families)",
+    }
+    if view is not None:
+        result["view"] = {"id": element_id_value(view.Id), "name": _safe_name(view)}
+    return result, None, 200
+
+
 def register_material_check_routes(api):
     """Register the render material check route with the API"""
 
@@ -523,51 +571,9 @@ def register_material_check_routes(api):
             if not doc:
                 return routes.make_response(
                     data={"error": "No active Revit document"}, status=503)
-            data = _parse_body(request) or {}
-            options, error = parse_options(data)
+            result, error, status = run_material_check(doc, _parse_body(request) or {})
             if error:
-                return routes.make_response(data={"error": error}, status=400)
-            categories, error = _resolve_categories(doc, options["categories"])
-            if error:
-                return routes.make_response(data={"error": error}, status=400)
-            view = None
-            view_ref = data.get("only_visible_in_view")
-            if view_ref is not None:
-                view, error = _resolve_view(doc, view_ref)
-                if error:
-                    return routes.make_response(data={"error": error}, status=404)
-                if view.IsTemplate:
-                    return routes.make_response(
-                        data={"error": "only_visible_in_view cannot be a view template"},
-                        status=400)
-
-            records, elements = collect_type_records(doc, categories, view)
-            names = material_names(doc, records)
-            summary, problems = check_records(
-                records, names, options["regex"],
-                options["max_families_per_material"], options["min_materials_per_family"])
-            returned, truncated = cap(problems, options["limit"])
-            used = set()
-            for record in records:
-                used.update(effective_materials(record))
-            result = {
-                "status": "success",
-                "document": normalize_string(doc.Title),
-                "categories": [normalize_string(c.Name) for c in categories],
-                "name_pattern": options["regex"].pattern,
-                "elements_checked": elements,
-                "types_checked": len(records),
-                "materials_checked": len(used),
-                "summary": summary,
-                "problems_total": len(problems),
-                "returned": len(returned),
-                "truncated": truncated,
-                "problems": returned,
-                "method": "one representative instance per family type (with its nested "
-                          "shared families)",
-            }
-            if view is not None:
-                result["view"] = {"id": element_id_value(view.Id), "name": _safe_name(view)}
+                return routes.make_response(data={"error": error}, status=status)
             return routes.make_response(data=result)
         except Exception as e:
             logger.error("Error in check_render_materials route: %s", e)
