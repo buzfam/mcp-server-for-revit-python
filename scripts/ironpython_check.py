@@ -532,6 +532,21 @@ def finish_element_helpers():
     assert u"skipped" in fe.summary_message("dry_run", 2, 1, "floors")
 
 
+def parameter_number_helpers():
+    from revit_mcp import parameters
+    assert parameters.normalize_number_text(u"2,40", ".") == u"2.40"
+    assert parameters.normalize_number_text(u"1.234,5 m²", ",") == u"1234,5 m²"
+    assert parameters.normalize_number_text(u"110 cm", ",") == u"110 cm"
+    assert parameters.normalize_number_text(u"Sala 1,2", ".") == u"Sala 1,2"
+    assert parameters.is_blank(u"  ") and not parameters.is_blank(0)
+    keep, collapsed, conflicts = parameters.group_changes([
+        (0, (long(2), u"w"), u"1"), (1, (long(2), u"w"), u" 1"),
+        (2, (long(3), u"w"), u"a"), (3, (long(3), u"w"), u"b")])
+    assert keep == set([0]) and collapsed == [{"index": 1, "same_as": 0}]
+    assert conflicts == [[2, 3]]
+    assert parameters.project_decimal_symbol(object()) == "."
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -559,6 +574,7 @@ check("sheet check review helpers", sheet_check_review_helpers)
 check("material check review helpers", material_check_review_helpers)
 check("quantity review helpers", quantity_review_helpers)
 check("finish element helpers", finish_element_helpers)
+check("parameters number helpers", parameter_number_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

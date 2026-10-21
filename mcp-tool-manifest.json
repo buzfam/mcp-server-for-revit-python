@@ -17,7 +17,7 @@
     },
     {
       "name": "bulk_set_parameters",
-      "description": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
+      "description": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; repeated changes are merged and numbers can be normalized to the project's decimal symbol; dry_run (default) only validates and previews."
     },
     {
       "name": "check_render_materials",
@@ -102,6 +102,10 @@
     {
       "name": "get_selected_elements",
       "description": "Lists the elements currently selected by the user, with category, family, type and level."
+    },
+    {
+      "name": "import_parameters_from_csv",
+      "description": "Writes parameter values from a spreadsheet (pasted CSV text or a .csv in the local import folder) to elements matched by element id or room number, through bulk_set_parameters; dry_run (default) only validates and previews."
     },
     {
       "name": "launch_revit",
@@ -209,6 +213,7 @@
     "Revit API - Document.Export(String, IList<ElementId>, PDFExportOptions), PDFExportOptions, ViewSheetSet, ViewSheet.IsPlaceholder/CanBePrinted, sheet revision parameters and System.IO drive/attribute checks (PDF issue)",
     "Revit API - Document.Phases, PhaseFilter.GetPhaseStatusPresentation, Element.HasPhases/ArePhasesModifiable/IsPhaseCreatedValid/IsPhaseDemolishedValid/CreatedPhaseId/DemolishedPhaseId and ElementMulticategoryFilter (phases)",
     "Revit API - Floor.Create / Ceiling.Create (2022+) with IList<CurveLoop> from Room.GetBoundarySegments, BoundaryValidation, CreatedPhaseId/IsPhaseCreatedValid and ROOM_PHASE/ROOM_UPPER_LEVEL/ROOM_LOWER_OFFSET (floors and ceilings from rooms)",
+    "Revit API - Document.GetUnits().DecimalSymbol and Element.GetTypeId for number normalization and repeated-change checks in bulk_set_parameters (CSV import)",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],
   "ai_llm_providers": []

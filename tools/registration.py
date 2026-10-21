@@ -37,6 +37,7 @@ class ReviewedTools:
                 destructiveHint=name not in READ_ONLY,
                 openWorldHint=name in {"execute_revit_code", "sync_with_central",
                                        "open_document", "save_document", "launch_revit",
+                                       "import_parameters_from_csv",
                                        "export_sheets_pdf"},
             )
             return self.server.tool(**kwargs)(paired_tool)

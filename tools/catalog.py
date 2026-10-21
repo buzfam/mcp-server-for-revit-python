@@ -23,7 +23,7 @@ TOOL_DESCRIPTIONS = {
     "sync_with_central": "Synchronizes the active workshared model with central using requested relinquish options.",
     "get_selected_elements": "Lists the elements currently selected by the user, with category, family, type and level.",
     "get_element_parameters": "Reads instance and optionally type parameters of elements, with raw and display values and editability.",
-    "bulk_set_parameters": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
+    "bulk_set_parameters": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; repeated changes are merged and numbers can be normalized to the project's decimal symbol; dry_run (default) only validates and previews.",
     "model_health_report": "Reads model health indicators: grouped warnings, imported CAD, in-place families, views off sheets, unused templates, links, groups and file size.",
     "create_sheets": "Creates many sheets with a chosen or default title block in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
     "place_views_on_sheets": "Places many views and schedules on sheets at given or title-block-centred positions in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
@@ -45,4 +45,5 @@ TOOL_DESCRIPTIONS = {
     "set_element_phases": "Sets created/demolished phases of many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
     "create_floors_from_rooms": "Creates one finish floor per room on the room boundary, in the room's phase, in one all-or-nothing transaction after review in Revit; skips rooms that already have a floor; dry_run (default) only previews areas.",
     "create_ceilings_from_rooms": "Creates one ceiling per room on the room boundary at a given or room-top height, in the room's phase, in one all-or-nothing transaction after review in Revit; skips rooms that already have a ceiling; dry_run (default) only previews areas.",
+    "import_parameters_from_csv": "Writes parameter values from a spreadsheet (pasted CSV text or a .csv in the local import folder) to elements matched by element id or room number, through bulk_set_parameters; dry_run (default) only validates and previews.",
 }

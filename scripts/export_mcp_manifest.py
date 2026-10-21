@@ -54,6 +54,7 @@ async def build_manifest():
             "Revit API - Document.Export(String, IList<ElementId>, PDFExportOptions), PDFExportOptions, ViewSheetSet, ViewSheet.IsPlaceholder/CanBePrinted, sheet revision parameters and System.IO drive/attribute checks (PDF issue)",
             "Revit API - Document.Phases, PhaseFilter.GetPhaseStatusPresentation, Element.HasPhases/ArePhasesModifiable/IsPhaseCreatedValid/IsPhaseDemolishedValid/CreatedPhaseId/DemolishedPhaseId and ElementMulticategoryFilter (phases)",
             "Revit API - Floor.Create / Ceiling.Create (2022+) with IList<CurveLoop> from Room.GetBoundarySegments, BoundaryValidation, CreatedPhaseId/IsPhaseCreatedValid and ROOM_PHASE/ROOM_UPPER_LEVEL/ROOM_LOWER_OFFSET (floors and ceilings from rooms)",
+            "Revit API - Document.GetUnits().DecimalSymbol and Element.GetTypeId for number normalization and repeated-change checks in bulk_set_parameters (CSV import)",
             "Revit API - User-supplied IronPython can invoke additional APIs under user review",
         ],
         "ai_llm_providers": [],

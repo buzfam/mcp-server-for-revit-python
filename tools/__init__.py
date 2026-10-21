@@ -30,6 +30,7 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     from .pdf_export_tools import register_pdf_export_tools
     from .phase_tools import register_phase_tools
     from .finish_element_tools import register_finish_element_tools
+    from .csv_import_tools import register_csv_import_tools
 
     # Register tools from each module
     register_status_tools(mcp_server, revit_get_func)
@@ -57,3 +58,4 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     register_pdf_export_tools(mcp_server, revit_get_func, revit_post_func)
     register_phase_tools(mcp_server, revit_get_func, revit_post_func)
     register_finish_element_tools(mcp_server, revit_get_func, revit_post_func)
+    register_csv_import_tools(mcp_server, revit_get_func, revit_post_func)
