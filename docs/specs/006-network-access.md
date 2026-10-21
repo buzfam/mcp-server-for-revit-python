@@ -1,6 +1,6 @@
 # 006 — Acesso pela rede (modo remoto direto)
 
-- **Status:** Implementada (não validada no Revit)
+- **Status:** Validada parcialmente no Revit (2026-10-20, Revit 2024 + pyRevit 7.0)
 - **Tipo:** transporte (sem tools novas)
 - **Código:** `main.py` (CLI, Host allowlist, TLS), `tools/remote_access.py`
   (token remoto), `tools/http_security.py` (validador injetável)
@@ -61,16 +61,16 @@ executada (resposta de pareamento ausente, esperado sem Revit), 421 com Host for
 
 ## Validação manual (Windows)
 - [ ] `--remote-token new` mostra o token; `remote.dpapi` não contém o token em texto
-- [ ] Servidor com `--host <IP>`; de outra máquina, `claude mcp add ...` lista as 22 tools
-- [ ] `get_selected_elements` remoto devolve a seleção do PC
-- [ ] Escrita remota (ex.: `color_splash`) abre o diálogo no Revit do PC
+- [x] Servidor com `--host <IP>`; de outra máquina, `claude mcp add ...` lista as 22 tools
+- [x] `get_selected_elements` remoto devolve a seleção do PC
+- [x] Escrita remota (ex.: `color_splash`) abre o diálogo no Revit do PC
 - [ ] `--remote-token revoke` → cliente remoto recebe 401
 - [ ] Regra de firewall com `-RemoteAddress` bloqueia uma terceira máquina
 - [ ] TLS com certificado da CA interna
-- [ ] Botão Remoto: menu aparece; sem pareamento, *Iniciar* pede o Connect
-- [ ] *Iniciar* sem `uv`: oferece instalar, instala e sobe o servidor
+- [x] Botão Remoto: menu aparece; sem pareamento, *Iniciar* pede o Connect
+- [x] *Iniciar* sem `uv`: oferece instalar, instala e sobe o servidor
 - [ ] Primeiro início (baixa dependências) → mensagem "iniciando"; depois *Ver token* mostra RODANDO
 - [ ] *Copiar comando do Claude Code* → colar na outra máquina conecta
 - [ ] *Gerar novo token* com servidor rodando → token antigo recebe 401 sem reiniciar
 - [ ] *Parar servidor* encerra o processo (porta 8000 livre)
-- [ ] Texto com acentos aparece correto nos diálogos (IronPython)
+- [x] Texto com acentos aparece correto nos diálogos (IronPython)

@@ -1,6 +1,6 @@
 # 004 — model_health_report
 
-- **Status:** Implementada (não validada no Revit)
+- **Status:** Validada parcialmente no Revit (2026-10-20, Revit 2024 + pyRevit 7.0): modelo vazio
 - **Tipo:** leitura (`authorize_request(request, action=None)`)
 - **Rota:** `POST /model_health/` em `revit_mcp/health.py` (POST + JSON, padrão do repositório)
 - **Wrapper:** `tools/health_tools.py` (módulo novo)
@@ -80,7 +80,7 @@ seguir (selecionar, isolar, corrigir com outras tools).
 - Integração: rodar em `tests/test.rvt` e checar que as chaves existem e os tipos batem.
 
 ## Validação manual no Revit
-- [ ] Modelo pequeno (test.rvt): roda em < 5 s
+- [x] Modelo pequeno (test.rvt): roda em < 5 s
 - [ ] Modelo grande (> 300 MB): tempo aceitável (< 60 s) e resposta < 20 KB
 - [ ] CAD importado vs vinculado contados separadamente
 - [ ] Comparar a contagem de avisos com *Manage > Warnings*

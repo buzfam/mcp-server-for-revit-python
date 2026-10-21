@@ -1,6 +1,6 @@
 # 003 — bulk_set_parameters
 
-- **Status:** Implementada (não validada no Revit)
+- **Status:** Validada parcialmente no Revit (2026-10-20, Revit 2024 + pyRevit 7.0): dry run, recusa (403), aceite e Ctrl+Z único com 2 paredes
 - **Tipo:** escrita (diálogo: `"Set element parameters"`); `dry_run` é leitura
 - **Rota:** `POST /bulk_set_parameters/` em `revit_mcp/parameters.py` (módulo novo)
 - **Wrapper:** `tools/parameter_tools.py` (módulo novo)
@@ -108,4 +108,4 @@ Com erro de validação (nada é aplicado):
 - [ ] Um item read-only no meio → nada aplicado, erro com índice
 - [ ] `"110 cm"` num projeto em metros e num em pés
 - [ ] Sim/Não com `true` e `"não"`
-- [ ] Usuário recusa o diálogo → 403, nada aplicado
+- [x] Usuário recusa o diálogo → 403, nada aplicado

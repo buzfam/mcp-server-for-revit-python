@@ -1,6 +1,6 @@
 # 001 — get_selected_elements
 
-- **Status:** Implementada (não validada no Revit)
+- **Status:** Validada parcialmente no Revit (2026-10-20, Revit 2024 + pyRevit 7.0)
 - **Tipo:** leitura (`authorize_request(request, action=None)`)
 - **Rota:** `POST /selection/` em `revit_mcp/selection.py` (POST com corpo JSON, como `/current_view_elements/`; o repositório não usa query string)
 - **Wrapper:** `tools/selection_tools.py` (módulo novo)
@@ -59,7 +59,7 @@ Seleção vazia: `"total": 0, "elements": []` com status 200 (não é erro).
   `execute_revit_code` antes de chamar a tool.
 
 ## Validação manual no Revit
-- [ ] Seleção vazia → `total: 0`
+- [x] Seleção vazia → `total: 0`
 - [ ] 3 portas selecionadas → 3 elementos com família/tipo/nível corretos
 - [ ] Seleção com 1500 elementos e `limit=200` → `truncated: true`, `returned: 200`
 - [ ] Revit 2024+ e uma versão anterior (IDs corretos)

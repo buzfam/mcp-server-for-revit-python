@@ -1,6 +1,6 @@
 # 002 — get_element_parameters
 
-- **Status:** Implementada (não validada no Revit)
+- **Status:** Validada parcialmente no Revit (2026-10-20, Revit 2024 + pyRevit 7.0)
 - **Tipo:** leitura (`authorize_request(request, action=None)`)
 - **Rota:** `POST /element_parameters/` em `revit_mcp/selection.py`
 - **Wrapper:** `tools/selection_tools.py`
@@ -68,7 +68,7 @@ precisa ver nomes exatos, valores, unidades e se o parâmetro é editável.
 - Integração: ler parâmetros de um elemento do `tests/test.rvt`.
 
 ## Validação manual no Revit
-- [ ] Parede: instância + tipo, `display` nas unidades do projeto
+- [x] Parede: instância + tipo, `display` nas unidades do projeto
 - [ ] Porta com parâmetro compartilhado
-- [ ] Sem IDs + seleção de 2 elementos
+- [x] Sem IDs + seleção de 2 elementos
 - [ ] 51 IDs → 400

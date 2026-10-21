@@ -16,8 +16,12 @@ _Última atualização: 2026-10-20_
   selecionado, modelo vazio), 2 falhas corrigidas em seguida (vista com acento e
   categoria em inglês num Revit em português). **Smoke após as correções: 16 ok,
   0 falhas reais** (vista "Nível 1" exportada; "Walls" achada como Paredes; só
-  avisos de modelo vazio). Faltam: parâmetros com seleção, ferramentas de escrita
-  com diálogo de aprovação e checklists manuais das specs.
+  avisos de modelo vazio). Depois, com 2 paredes criadas pelo MCP: parâmetros
+  lidos, `bulk_set_parameters` em "Comentários" com dry run, recusa (403), aceite
+  e **um Ctrl+Z desfazendo as duas**. Botões Connected/Disconnected e Atualizar
+  funcionando. Achados e corrigidos no caminho: cabeçalhos do pyRevit 7, acentos
+  (JSON da ponte, `json.dumps` no diálogo, URL da vista), categorias e parâmetros
+  em português. Checklists marcados nas specs; o que falta está desmarcado lá.
   Botão de pareamento único (Connected/Disconnected) ainda não visto no Revit.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
