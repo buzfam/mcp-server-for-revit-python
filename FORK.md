@@ -24,7 +24,7 @@ relatos, só **lê** o modelo. O diferencial deste fork é:
 
 | Área | Upstream | Fork |
 |---|---|---|
-| Tools | 20 | 33 (+ specs 001–004 e 007–011: seleção, parâmetros, saúde, folhas, templates, tags, exportação, modelagem) |
+| Tools | 20 | 38 (+ specs 001–004 e 007–015: seleção, parâmetros, saúde, folhas, templates, tags, exportação, modelagem, auditoria, conferências, quantitativos) |
 | Guia para agentes | — | `AGENTS.md`, `CLAUDE.md`, `.claude/skills/` |
 | Acompanhamento | — | `HANDOFF.md`, `CHANGELOG.md`, `docs/specs/` |
 | `.gitignore` | ignora `CLAUDE.md` | `CLAUDE.md` versionado |
@@ -49,10 +49,14 @@ parâmetros em massa, saúde do modelo, tags, templates). Status em `docs/specs/
 | 009 | `tag_elements` (feito) | escrita | Tags por categoria e vista (generaliza `tag_walls`) |
 | 010 | `export_schedule` / `export_rooms` (feito) | leitura | Dados para CSV/Excel |
 | 011 | `create_walls` / `create_rooms` / `place_hosted_families` (feito) | escrita | Modelar sem o agente escrever código solto |
+| 012 | `audit_template` (feito) | leitura | Auditoria do template (19 itens) |
+| 013 | `check_sheets` (feito) | leitura | Itens faltando nas pranchas antes da emissão |
+| 014 | `check_render_materials` (feito) | leitura | Materiais prontos para o Lumion |
+| 015 | `room_finishes` / `quantities_by_rule` (feito) | leitura | Quantitativos com regra de medição explícita |
 | 006 | **Acesso pela rede direto** (feito) | transporte | Agente em outra máquina controla o Revit pelo IP do PC ([guia](docs/acesso-remoto.md)) |
 | 005 | **Fábrica**: hub central + agentes nos PCs | arquitetura | Vários PCs num ponto só, com aprovação e auditoria centrais |
 
-Specs detalhadas existem para 001 a 011; as próximas são escritas quando entrarem
+Specs detalhadas existem para 001 a 015; as próximas são escritas quando entrarem
 em desenvolvimento.
 
 ## Sincronizar com o upstream

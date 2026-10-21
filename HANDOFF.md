@@ -31,6 +31,14 @@ _Última atualização: 2026-10-20_
   `FailuresPreprocessor` suprimir os diálogos de aviso no Revit 2024, e
   `NewRoomBoundaryLines` numa vista que não é a ativa. Também: `format_response`
   corrigido (dados não somem quando há mensagem) e botão **Bridge > Log**.
+- **2026-10-21 (2): 5 tools de leitura (38 no total), não validadas no Revit**:
+  `audit_template` (012), `check_sheets` (013), `check_render_materials` (014),
+  `room_finishes` + `quantities_by_rule` (015), itens R1–R4 da proposta do
+  hermes-vps. Riscos: `Document.GetUnusedElements` (esperado no 2024),
+  `BrowserOrganization`, tempo da auditoria num `.rvt` grande (timeout 120 s),
+  "viewport vazio" na prática, tamanho das esquadrias (`size_source`) e fases
+  em FromRoom/ToRoom. Padrões de medição (vãos > 2 m² etc.) **precisam ser
+  confirmados com o escritório**.
 - 24 tools: as 20 do upstream + `get_selected_elements` (001),
   `get_element_parameters` (002), `bulk_set_parameters` (003) e
   `model_health_report` (004), no `master`. **Nenhuma validada no Revit.**
@@ -78,6 +86,11 @@ _Última atualização: 2026-10-20_
          novo e conferir que pula as já etiquetadas.
    - [ ] **Exportação (010)**: `export_rooms` (bater áreas com o Revit) e
          `export_schedule` em CSV.
+   - [ ] **Conferências (012–015)**, de preferência num `.rvt` real do escritório:
+         `audit_template` (comparar a prévia com *Purge Unused*), `check_sheets`
+         com um checklist de exemplo da spec 013, `check_render_materials` num
+         móvel conhecido, `room_finishes` (bater um ambiente à mão) e
+         `quantities_by_rule` em CSV.
    - [ ] Itens ainda abertos das specs 001–004 e 006 (checklists em cada spec):
          seleção grande truncada, parâmetro compartilhado, Sim/Não, `"110 cm"`,
          *Parar servidor* liberando a porta 8000.
@@ -90,6 +103,9 @@ _Última atualização: 2026-10-20_
 
 ## Ideias (não decididas, 2026-10-21)
 
+- Próximos da proposta do hermes-vps (P1): `phases_report` + `set_element_phases`,
+  `export_sheets_pdf` (exportador nativo) com manifesto da emissão, botões sem IA
+  no ribbon reaproveitando 013/014/PDF.
 - `create_floors` / `create_ceilings` a partir do contorno dos ambientes.
 - `renumber_elements` (portas por ambiente, folhas em sequência) com dry run.
 - `duplicate_views` em lote (dependentes, com detalhamento) e `create_levels` / `create_grids`.
@@ -138,6 +154,7 @@ Documento completo: `buzfam/cvarq-skills` → `docs/propostas/2026-10-21-mcps-pl
 | 2026-10-20 | Token remoto separado do pareamento; TLS opcional com aviso | Revogar acesso pela rede sem quebrar o local; facilitar o piloto em LAN |
 | 2026-10-20 | Gerenciar token e servidor remoto pelo ribbon (botão Remoto) | O usuário instala via pyRevit e não terá terminal no PC |
 | 2026-10-20 | Servidor remoto continua rodando se o Revit fechar | Simplicidade; parar é explícito pelo botão |
+| 2026-10-21 | `export_sheets_pdf` usa o exportador nativo do Revit (`Document.Export` + `PDFExportOptions`, Revit 2022+) | Preferência do usuário; dispensa impressora PDF virtual |
 
 ## Pendências e riscos
 

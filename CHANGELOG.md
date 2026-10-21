@@ -37,6 +37,22 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **5 tools de conferência, só leitura (38 no total)**, a partir da especificação
+  do escritório (Carol Vale Arquitetura) e das sugestões do hermes-vps:
+  - `audit_template` (spec 012): inventário dos 19 itens do template (§11.2),
+    com o que está sem uso, prévia do *Purge* e regras de nomenclatura por regex.
+  - `check_sheets` (spec 013): confere cada folha contra o checklist do tipo de
+    prancha (vistas, tabelas, legendas, escalas, campos do carimbo, revisão) e
+    acusa viewports vazios e vistas fora de folha; o que a API não vê volta como
+    "conferir a olho".
+  - `check_render_materials` (spec 014): regra permanente de materiais (§7.3)
+    antes do Lumion: padrão `OBJETO_MATERIAL_PARTE_NN`, nomes duplicados,
+    material genérico em várias famílias, móvel com um material só, geometria
+    com o material da categoria.
+  - `room_finishes` e `quantities_by_rule` (spec 015): quantitativos por ambiente
+    e por grupo (esquadrias, louças e metais, alvenaria, pisos, forros, rodapés,
+    pintura), cada número com a regra de medição usada (desconto de vãos,
+    rodapé menos portas, perdas, arredondamento); JSON ou CSV.
 - **9 tools novas** (33 no total), todas de escrita com `dry_run` padrão, tudo ou
   nada, uma aprovação e um único Ctrl+Z por lote (máx. 200 itens):
   - Folhas (spec 007): `create_sheets` (carimbo escolhido ou padrão) e

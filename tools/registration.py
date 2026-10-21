@@ -10,6 +10,8 @@ READ_ONLY = {
     "list_families", "list_family_categories", "list_category_parameters",
     "list_revit_installations", "get_selected_elements", "get_element_parameters",
     "model_health_report", "export_schedule", "export_rooms",
+    "audit_template", "check_sheets", "check_render_materials", "room_finishes",
+    "quantities_by_rule",
 }
 
 

@@ -18,6 +18,10 @@ do código. A implementação segue a skill `add-mcp-tool`.
 | 009 | [tag_elements](009-tag-elements.md) | escrita | Implementada (não validada no Revit) |
 | 010 | [export_schedule, export_rooms](010-export-data.md) | leitura | Implementada (não validada no Revit) |
 | 011 | [create_walls, create_rooms, place_hosted_families](011-modeling.md) | escrita | Implementada (não validada no Revit) |
+| 012 | [audit_template](012-audit-template.md) | leitura | Implementada (não validada no Revit) |
+| 013 | [check_sheets](013-check-sheets.md) | leitura | Implementada (não validada no Revit) |
+| 014 | [check_render_materials](014-check-render-materials.md) | leitura | Implementada (não validada no Revit) |
+| 015 | [room_finishes, quantities_by_rule](015-quantities.md) | leitura | Implementada (não validada no Revit) |
 
 Status: **Proposta** → **Em desenvolvimento** → **Implementada (não validada no Revit)** → **Validada no Revit <ano>**.
 

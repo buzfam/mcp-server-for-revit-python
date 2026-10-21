@@ -12,8 +12,20 @@
       "description": "Applies a view template to many views chosen by name, id or view type in one all-or-nothing transaction after review in Revit; dry_run (default) only previews before/after templates."
     },
     {
+      "name": "audit_template",
+      "description": "Audits the open project or template against the office checklist (browser, levels, phases, view templates, filters, views, line styles, annotation types, families, parameters, materials, schedules, sheets, export settings, naming) and previews purgeable items."
+    },
+    {
       "name": "bulk_set_parameters",
       "description": "Sets parameter values on many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
+    },
+    {
+      "name": "check_render_materials",
+      "description": "Checks render materials before exporting to Lumion: name pattern, duplicate names, generic materials shared by families, single-material furniture and geometry left with the category material."
+    },
+    {
+      "name": "check_sheets",
+      "description": "Checks each sheet against the checklist of its sheet type before issuing (views, schedules, legends, scales, title block fields, revision) plus empty viewports and views off sheets."
     },
     {
       "name": "clear_colors",
@@ -128,6 +140,14 @@
       "description": "Places many views and schedules on sheets at given or title-block-centred positions in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
     },
     {
+      "name": "quantities_by_rule",
+      "description": "Reads quantities by group (doors and windows, plumbing fixtures, walls, floors, ceilings, skirting, painting) with the measurement rule on each line, as JSON or CSV."
+    },
+    {
+      "name": "room_finishes",
+      "description": "Reads per-room finish quantities (floor, ceiling, gross and net wall area, skirting, painting) with the measurement rule behind each value."
+    },
+    {
       "name": "save_document",
       "description": "Saves the active document in place or to a specified new file."
     },
@@ -157,6 +177,10 @@
     "Revit API - ViewSchedule TableData/GetSectionData/GetCellText and Room area, perimeter and volume (data export)",
     "Revit API - Wall.Create, WallType, WallUtils, Document.Create.NewRoom/NewRoomBoundaryLines/NewRoomTag, SketchPlane and NewFamilyInstance on wall hosts (modeling)",
     "Revit API - TransactionGroup Assimilate/RollBack and IFailuresPreprocessor/FailuresAccessor (dry-run validation and warning handling)",
+    "Revit API - BrowserOrganization, PhaseFilter, ParameterFilterElement/SelectionFilterElement, line style subcategories, LinePattern/FillPatternElement, DimensionType/TextNoteType, SharedParameterElement and ParameterBindings, export setting collectors and Document.GetUnusedElements (template audit)",
+    "Revit API - ViewSheet, Viewport, ScheduleSheetInstance and view-scoped FilteredElementCollector (sheet checks)",
+    "Revit API - Element.GetMaterialIds, Category.Material, Element geometry solids and FamilyInstance.GetSubComponentIds (render material checks)",
+    "Revit API - Room.GetBoundarySegments, Room.IsPointInRoom/UnboundedHeight, FamilyInstance FromRoom/ToRoom per Phase, door/window size and wall area/volume parameters (quantity takeoff)",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],
   "ai_llm_providers": []

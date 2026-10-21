@@ -270,6 +270,77 @@ def modeling_helpers():
     assert modeling.wall_settings({}, {"top_level": u"Nível 2"})["top_level"] == u"Nível 2"
 
 
+def audit_helpers():
+    from revit_mcp import audit
+    options, error = audit.parse_request({"sections": [u"families", u"views"], "limit": long(5),
+                                          "naming": {u"views": u"(PB|CT) - .+"}})
+    assert error is None and options["sections"] == ["views", "families"] and options["limit"] == 5
+    assert "worksets" in audit.parse_request({"sections": [u"worksets"]})[1]
+    assert "invalid regex" in audit.parse_request({"naming": {u"views": u"([A"}})[1]
+    pattern, regex = options["naming"][u"views"]
+    result = audit.naming_check([(1, u"PB - Térreo"), (2, u"Térreo"), (3, None)], pattern, regex, 1)
+    assert result["violations_count"] == 2 and result["violations"] == [{"id": 2, "name": u"Térreo"}]
+    assert result["truncated"]
+    items = audit.unused_first([{"name": u"b", "unused": False}, {"name": u"Área", "unused": True}])
+    assert items[0]["name"] == u"Área"
+    summary = audit.summarize(items, 1, rule="x")
+    assert summary["count"] == 2 and summary["unused_count"] == 1 and summary["truncated"]
+    assert audit.summarize([], 5, tracks_unused=False)["unused_count"] is None
+    assert audit.feet_to_m(10.0) == 3.048 and audit.rgb_hex(255, 0, long(128)) == "#FF0080"
+    entries = audit.checklist(["views"], True)
+    assert len(entries) == 19 and entries[15]["sections"] == ["naming"]
+
+
+def sheet_check_helpers():
+    from revit_mcp import sheet_checks as checks
+    rule = {u"name": u"Planta de layout", u"match": {u"number_prefix": u"A-1", u"name_regex": u"layout"},
+            u"required_views": [{u"view_type": u"floorplan", u"name_regex": u"layout", u"min": long(1)}],
+            u"required_schedules": [u"esquadrias"], u"allowed_scales": [long(50)],
+            u"title_block_params": [u"Desenhado por"], u"require_revision": True,
+            u"manual": [u"cotas conferidas"]}
+    assert checks.validate_rule(rule) is None
+    assert u"invalid regex" in checks.validate_rule({u"match": {u"name_regex": u"("}})
+    assert checks.canonical_view_type(u"floorplan") == u"FloorPlan"
+    assert checks.rule_matches(rule, u"a-101", u"Planta de Layout Térreo")
+    info = {"views": [{"name": u"Layout Térreo", "type": "FloorPlan", "scale": long(75), "empty": True}],
+            "schedules": [u"Tabela de Esquadrias"], "has_title_block": True,
+            "params": {u"Desenhado por": "empty"}, "revision": None}
+    problems, manual, status = checks.evaluate_sheet(info, rule, True)
+    found = dict((p["check"], p["detail"]) for p in problems)
+    assert status == "missing" and manual == [u"cotas conferidas"]
+    assert found["scale"] == u"vista 'Layout Térreo' em 1:75 (permitidas: 1:50)"
+    assert found["title_block_param"] == u"parâmetro 'Desenhado por' vazio"
+
+
+def material_check_helpers():
+    from revit_mcp import material_checks as m
+    assert m.strip_accents(u"POLTRONA_AÇO_PÉ_01") == u"POLTRONA_ACO_PE_01"
+    regex, error = m.compile_pattern(None)
+    assert error is None
+    assert m.name_ok(u"POLTRONA_MADEIRA_PÉ_03", regex)
+    assert not m.name_ok(u"Madeira", regex)
+    groups = m.duplicate_groups([u"Madeira Carvalho", u"MADEIRA_CARVALHO",
+                                 u"TECIDO_SOFA_ASSENTO_01", u"TECIDO_SOFA_ASSENTO_02", u"Vidro"])
+    kinds = dict((g["key"], g["kind"]) for g in groups)
+    assert kinds == {u"madeiracarvalho": "duplicate", u"tecidosofaassento": "similar"}, kinds
+
+
+def quantity_helpers():
+    from revit_mcp import quantities as q
+    rules, error = q.parse_rules({u"deduct_openings": u"ALL", u"rounding": long(1)})
+    assert error is None and rules["deduct_openings"] == "all" and rules["rounding"] == 1, error
+    rules, _ = q.parse_rules(None)
+    assert not q.opening_deducted(2.0000000001, rules) and q.opening_deducted(2.4, rules)
+    walls = q.net_wall_area(30.0, [1.68, 2.4, None], rules)
+    assert abs(walls["net"] - 27.6) < 1e-9 and walls["kept_count"] == 2
+    assert q.skirting_length(14.0, [0.8], True) == (13.2, 0.8)
+    texts = q.rule_texts(rules)
+    assert isinstance(texts["paredes"], unicode) and u"2.00 m²" in texts["paredes"]
+    line = q.make_line("pisos", u"Cerâmica", "area", "m2", 10.004, texts["piso"],
+                       q.parse_rules({"waste_percent": 10})[0])
+    assert line["quantity"] == 10.0 and line["quantity_with_waste"] == 11.0
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -284,6 +355,10 @@ check("utils unicode", utils_unicode)
 check("sheet helpers", sheet_helpers)
 check("annotation/export helpers", annotation_export_helpers)
 check("modeling helpers", modeling_helpers)
+check("audit helpers", audit_helpers)
+check("sheet check helpers", sheet_check_helpers)
+check("material check helpers", material_check_helpers)
+check("quantity helpers", quantity_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

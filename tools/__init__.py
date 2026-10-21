@@ -22,6 +22,10 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     from .annotation_tools import register_annotation_tools
     from .export_tools import register_export_tools
     from .modeling_tools import register_modeling_tools
+    from .audit_tools import register_audit_tools
+    from .sheet_check_tools import register_sheet_check_tools
+    from .material_check_tools import register_material_check_tools
+    from .quantity_tools import register_quantity_tools
 
     # Register tools from each module
     register_status_tools(mcp_server, revit_get_func)
@@ -41,3 +45,7 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     register_annotation_tools(mcp_server, revit_get_func, revit_post_func)
     register_export_tools(mcp_server, revit_get_func, revit_post_func)
     register_modeling_tools(mcp_server, revit_get_func, revit_post_func)
+    register_audit_tools(mcp_server, revit_get_func, revit_post_func)
+    register_sheet_check_tools(mcp_server, revit_get_func, revit_post_func)
+    register_material_check_tools(mcp_server, revit_get_func, revit_post_func)
+    register_quantity_tools(mcp_server, revit_get_func, revit_post_func)

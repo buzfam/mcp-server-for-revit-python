@@ -34,4 +34,9 @@ TOOL_DESCRIPTIONS = {
     "create_walls": "Creates straight walls from start/end points in meters on a level, with type, height or top level, in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
     "create_rooms": "Creates rooms at points or inside new room separation polygons (meters), with name, number and tags, and reports areas in m²; all or nothing after review in Revit; dry_run (default) only validates and previews.",
     "place_hosted_families": "Places doors, windows or other wall-hosted families in walls by wall id and offset or nearest point (meters), with sill height and flips; all or nothing after review in Revit; dry_run (default) only validates and previews.",
+    "audit_template": "Audits the open project or template against the office checklist (browser, levels, phases, view templates, filters, views, line styles, annotation types, families, parameters, materials, schedules, sheets, export settings, naming) and previews purgeable items.",
+    "check_sheets": "Checks each sheet against the checklist of its sheet type before issuing (views, schedules, legends, scales, title block fields, revision) plus empty viewports and views off sheets.",
+    "check_render_materials": "Checks render materials before exporting to Lumion: name pattern, duplicate names, generic materials shared by families, single-material furniture and geometry left with the category material.",
+    "room_finishes": "Reads per-room finish quantities (floor, ceiling, gross and net wall area, skirting, painting) with the measurement rule behind each value.",
+    "quantities_by_rule": "Reads quantities by group (doors and windows, plumbing fixtures, walls, floors, ceilings, skirting, painting) with the measurement rule on each line, as JSON or CSV.",
 }

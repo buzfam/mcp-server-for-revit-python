@@ -73,6 +73,22 @@ def register_routes():
 
         register_modeling_routes(api)
 
+        from revit_mcp.audit import register_audit_routes
+
+        register_audit_routes(api)
+
+        from revit_mcp.sheet_checks import register_sheet_check_routes
+
+        register_sheet_check_routes(api)
+
+        from revit_mcp.material_checks import register_material_check_routes
+
+        register_material_check_routes(api)
+
+        from revit_mcp.quantities import register_quantity_routes
+
+        register_quantity_routes(api)
+
         logger.info("All MCP routes registered successfully")
 
     except Exception as e:
