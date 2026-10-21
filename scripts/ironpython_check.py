@@ -369,6 +369,104 @@ def review_fix_helpers():
     assert view is None and u"use view_id" in error
 
 
+def renumber_helpers():
+    from revit_mcp import renumber as rn
+    assert sorted([u"A-10", u"A-2", u"a-1", u""], key=rn.natural_key) == [u"a-1", u"A-2", u"A-10", u""]
+    parts, error = rn.parse_pattern(u"P-{room_number}-{seq:02}")
+    assert error is None
+    assert rn.format_pattern(parts, {"seq": 3, "room_number": u"101"}) == u"P-101-03"
+    assert rn.parse_pattern(u"{room_name}")[1] is not None
+    assert rn.parse_pattern(u"{seq}{")[1] is not None
+    options, error = rn.validate_request({"target": u"Portas", "pattern": u"{level}-{seq}",
+                                          "group_by": "level", "start": 101})
+    assert error is None and options["kind"] == "doors" and options["order"] == "location"
+    assert rn.validate_request({"target": "sheets", "order": "location"})[1] is not None
+    assert rn.validate_request({"target": "sheets", "phase": u"Existente"})[1] is not None
+    assert "'A-1'" in rn.find_conflicts([(1, u"A-1"), (2, u"a-1")], [], True)[0][0]["error"]
+    records = [{"element_id": 1, "elevation": 0.0, "x": 5.0, "y": 0.0, "level": u"Térreo"},
+               {"element_id": 2, "elevation": 0.0, "x": 0.0, "y": 0.2, "level": u"Térreo"},
+               {"element_id": 3, "elevation": 3.0, "x": 0.0, "y": 0.0, "level": u"P1"}]
+    planned = rn.plan_numbers(records, options)
+    assert [(r["element_id"], v) for r, v in planned] == [
+        (2, u"Térreo-101"), (1, u"Térreo-102"), (3, u"P1-101")]
+    errors, warnings = rn.find_conflicts([(1, u"A-1"), (2, u"a-1")], [u"B"], True)
+    assert len(errors) == 2 and not warnings
+    assert rn.temp_value(7, set([u"mcp-tmp-7"])) == u"MCP-TMP-7-2"
+
+
+def pdf_export_helpers():
+    import datetime
+    from collections import OrderedDict
+    from revit_mcp import pdf_export as pdf
+    values = {"project_number": u"P-07", "sheet_number": u"A-101", "revision": u"",
+              "date": u"2026-10-21", "sheet_name": u"Planta: Térreo"}
+    assert pdf.build_file_name(pdf.DEFAULT_PATTERN, values) == u"P-07_A-101_2026-10-21"
+    assert pdf.build_file_name(u"{sheet_number} {sheet_name}", values) == u"A-101 Planta- Térreo"
+    assert pdf.build_file_name(u"{revision}", {}) == u"Emissao"
+    assert pdf.pattern_error(pdf.DEFAULT_PATTERN) is None
+    assert pdf.pattern_error(u"{folha}_{date}")
+    assert pdf.dedupe_names([u"A", u"a"]) == ([u"A", u"a_2"], [1])
+    assert pdf.validate_folder(u"d:/Projetos/Emissão/") == (u"D:\\Projetos\\Emissão", None)
+    assert pdf.validate_folder(u"\\\\nas\\x")[0] is None
+    assert pdf.validate_folder(u"D:\\a\\..\\b")[0] is None
+    assert pdf.validate_folder(u"C:\\Windows\\Temp")[0] is None
+    assert pdf.validate_folder(u"D:\\PROJET~1")[0] is None
+    assert pdf.validate_folder(u"D:\\Projetos\\nul.txt")[0] is None
+    now = datetime.datetime(2026, 10, 21, 9, 5, 7)
+    assert pdf.default_folder(u"C:\\Docs", u"P-07", now) == \
+        u"C:\\Docs\\RevitMCP\\Emissoes\\P-07\\2026-10-21_090507"
+    assert pdf.parse_issued_at(u"2026-10-21T09:05:07") == (now, None)
+    assert pdf.parse_issued_at(u"21/10/2026")[1]
+    assert pdf.backup_name(u"A.pdf", now) == u"A.pdf.bak-20261021_090507"
+    assert pdf.paper_format_name(u"iso_a1", [u"Default", u"ISO_A1"]) == u"ISO_A1"
+    assert pdf.approval_action(2, u"D:\\Emissão", 1) == \
+        u"Export 2 PDF(s) to D:\\Emissão and REPLACE 1 existing file(s)"
+    assert pdf.disk_folder_error(u"D:\\a\\b", lambda root: u"Fixed", lambda path: None) is None
+    assert pdf.disk_folder_error(u"Z:\\a", lambda root: u"Network", lambda path: None)
+    assert pdf.disk_folder_error(u"D:\\a", lambda root: u"Fixed",
+                                 lambda path: u"Directory, ReparsePoint")
+    assert u"\n" not in pdf.json_text({u"a": [1, u"é"]}, compact=True)
+    assert pdf.common_revision([u"R01", u"R01"]) == u"R01"
+    assert pdf.common_revision([u"R01", u""]) == u""
+    record = OrderedDict([("nome", u"Árvore \"A\""), ("n", long(3)), ("ok", True), ("x", None)])
+    text = pdf.json_text(record)
+    text.encode("ascii")
+    assert u"\\u00c1rvore \\\"A\\\"" in text and text.index(u"nome") < text.index(u"ok")
+    assert pdf.validate_options({u"sheets": [u"A-101"], u"color": u"grayscale"}) is None
+    assert pdf.validate_options({u"zoom_percent": 5})
+    planned, renamed = pdf.plan_files(
+        [{"sheet_number": u"A-1", "revision": u"R1"}, {"sheet_number": u"A-2", "revision": u"R1"}],
+        pdf.DEFAULT_PATTERN, {"number": u"P-07"}, u"2026-10-21", True)
+    assert planned == [(u"P-07_R1_2026-10-21", [0, 1])] and renamed == []
+
+
+def phase_helpers():
+    from revit_mcp import phases as ph
+    order = [(long(10), u"Existente"), (long(11), u"Nova construção")]
+    assert ph.resolve_phase(order, u"NOVA construção") == (1, None)
+    assert ph.resolve_phase(order, long(10)) == (0, None)
+    position, error = ph.resolve_phase(order, u"Demolição")
+    assert position is None and isinstance(error, unicode) and u"Nova construção" in error
+    assert u"comes before" in ph.order_error(1, 0, order) and ph.order_error(0, 0, order) is None
+    assert ph.status_in_phase(0, 1, 1) == "demolished" and ph.status_in_phase(1, None, 1) == "new"
+    assert ph.is_clear(u"Nenhum") and not ph.is_clear(u"Existente")
+    assert ph.validate_change({u"element_id": long(5), u"demolished_phase": u"nenhum"}) is None
+    assert "cannot be cleared" in ph.validate_change({"element_id": 5, "created_phase": u"none"})
+    assert ph.validate_selector({u"category": u"Paredes", u"level": u"Térreo"}) is None
+    assert ph.presentation_name(u"ShowOverriden") == "overridden"
+    rows = ph.combination_rows({(0, 1): {"count": 2, "categories": {u"Paredes": 2}}}, order, True)
+    assert rows[0]["demolished_phase"] == u"Nova construção" and rows[0]["categories"][0]["count"] == 2
+    groups, truncated = ph.group_views([(u"Existente", None, u"Planta térreo")], 1)
+    assert groups[0]["views"] == [u"Planta térreo"] and not truncated
+    dupes = ph.duplicate_errors([{u"element_id": long(7), u"created_phase": u"A"},
+                                 {u"element_id": long(7), u"demolished_phase": u"B"}])
+    assert dupes == [{"index": 1, "error": "element_id 7 repeats change 0"}], dupes
+    assert ph.expected_count_error(long(3)) is None and ph.expected_count_error(0)
+    assert u"Schedule" in ph.view_kind_error(u"Schedule", False)
+    assert ph.view_kind_error(u"FloorPlan", False) is None and ph.view_kind_error(u"FloorPlan", True)
+    assert ph.preview_ids(list(range(60))) == list(range(50))
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -388,6 +486,9 @@ check("sheet check helpers", sheet_check_helpers)
 check("material check helpers", material_check_helpers)
 check("quantity helpers", quantity_helpers)
 check("review fix helpers", review_fix_helpers)
+check("renumber helpers", renumber_helpers)
+check("pdf export helpers", pdf_export_helpers)
+check("phase helpers", phase_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

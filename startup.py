@@ -35,6 +35,9 @@ ROUTE_MODULES = [
     ("revit_mcp.sheet_checks", "register_sheet_check_routes"),
     ("revit_mcp.material_checks", "register_material_check_routes"),
     ("revit_mcp.quantities", "register_quantity_routes"),
+    ("revit_mcp.renumber", "register_renumber_routes"),
+    ("revit_mcp.pdf_export", "register_pdf_export_routes"),
+    ("revit_mcp.phases", "register_phase_routes"),
 ]
 
 

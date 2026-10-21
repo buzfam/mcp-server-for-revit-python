@@ -12,6 +12,7 @@ READ_ONLY = {
     "model_health_report", "export_schedule", "export_rooms",
     "audit_template", "check_sheets", "check_render_materials", "room_finishes",
     "quantities_by_rule",
+    "phases_report",
 }
 
 
@@ -35,7 +36,8 @@ class ReviewedTools:
                 readOnlyHint=name in READ_ONLY,
                 destructiveHint=name not in READ_ONLY,
                 openWorldHint=name in {"execute_revit_code", "sync_with_central",
-                                       "open_document", "save_document", "launch_revit"},
+                                       "open_document", "save_document", "launch_revit",
+                                       "export_sheets_pdf"},
             )
             return self.server.tool(**kwargs)(paired_tool)
         return register

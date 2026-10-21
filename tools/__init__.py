@@ -26,6 +26,9 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     from .sheet_check_tools import register_sheet_check_tools
     from .material_check_tools import register_material_check_tools
     from .quantity_tools import register_quantity_tools
+    from .renumber_tools import register_renumber_tools
+    from .pdf_export_tools import register_pdf_export_tools
+    from .phase_tools import register_phase_tools
 
     # Register tools from each module
     register_status_tools(mcp_server, revit_get_func)
@@ -49,3 +52,6 @@ def register_tools(mcp_server, revit_get_func, revit_post_func, revit_image_func
     register_sheet_check_tools(mcp_server, revit_get_func, revit_post_func)
     register_material_check_tools(mcp_server, revit_get_func, revit_post_func)
     register_quantity_tools(mcp_server, revit_get_func, revit_post_func)
+    register_renumber_tools(mcp_server, revit_get_func, revit_post_func)
+    register_pdf_export_tools(mcp_server, revit_get_func, revit_post_func)
+    register_phase_tools(mcp_server, revit_get_func, revit_post_func)

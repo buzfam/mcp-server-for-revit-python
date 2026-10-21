@@ -39,4 +39,8 @@ TOOL_DESCRIPTIONS = {
     "check_render_materials": "Checks render materials before exporting to Lumion: name pattern, duplicate names, generic materials shared by families, single-material furniture and geometry left with the category material.",
     "room_finishes": "Reads per-room finish quantities (floor, ceiling, gross and net wall area, skirting, painting) with the measurement rule behind each value.",
     "quantities_by_rule": "Reads quantities by group (doors and windows, plumbing fixtures, walls, floors, ceilings, skirting, painting) with the measurement rule on each line, as JSON or CSV.",
+    "renumber_elements": "Renumbers doors, windows, rooms, sheets or any category's Mark from a pattern (room, level, sequence tokens) in reading or current order, in one all-or-nothing transaction after review in Revit; room numbers are checked per phase; dry_run (default) only previews changed values.",
+    "export_sheets_pdf": "Exports sheets (by number, sheet set or all) to PDF with Revit's native exporter, named by the office rule (project, sheet, revision, date), with an emissao.json issue manifest; replaces existing files only with a backup; dry run by default.",
+    "phases_report": "Reads project phases, phase filters, element counts per created/demolished phase and views per phase.",
+    "set_element_phases": "Sets created/demolished phases of many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews.",
 }

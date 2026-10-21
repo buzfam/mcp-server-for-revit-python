@@ -64,6 +64,10 @@
       "description": "Reads a schedule's rows as JSON or CSV text."
     },
     {
+      "name": "export_sheets_pdf",
+      "description": "Exports sheets (by number, sheet set or all) to PDF with Revit's native exporter, named by the office rule (project, sheet, revision, date), with an emissao.json issue manifest; replaces existing files only with a backup; dry run by default."
+    },
+    {
       "name": "get_current_view_elements",
       "description": "Lists elements visible in the active view, with optional level and location information."
     },
@@ -128,6 +132,10 @@
       "description": "Opens a specified Revit document, optionally auditing or detaching it from central."
     },
     {
+      "name": "phases_report",
+      "description": "Reads project phases, phase filters, element counts per created/demolished phase and views per phase."
+    },
+    {
       "name": "place_family",
       "description": "Places a loaded family instance at specified coordinates and sets requested properties."
     },
@@ -144,12 +152,20 @@
       "description": "Reads quantities by group (doors and windows, plumbing fixtures, walls, floors, ceilings, skirting, painting) with the measurement rule on each line, as JSON or CSV."
     },
     {
+      "name": "renumber_elements",
+      "description": "Renumbers doors, windows, rooms, sheets or any category's Mark from a pattern (room, level, sequence tokens) in reading or current order, in one all-or-nothing transaction after review in Revit; room numbers are checked per phase; dry_run (default) only previews changed values."
+    },
+    {
       "name": "room_finishes",
       "description": "Reads per-room finish quantities (floor, ceiling, gross and net wall area, skirting, painting) with the measurement rule behind each value."
     },
     {
       "name": "save_document",
       "description": "Saves the active document in place or to a specified new file."
+    },
+    {
+      "name": "set_element_phases",
+      "description": "Sets created/demolished phases of many elements in one all-or-nothing transaction after review in Revit; dry_run (default) only validates and previews."
     },
     {
       "name": "sync_with_central",
@@ -181,6 +197,9 @@
     "Revit API - ViewSheet, Viewport, ScheduleSheetInstance and view-scoped FilteredElementCollector (sheet checks)",
     "Revit API - Element.GetMaterialIds, Category.Material, Element geometry solids and FamilyInstance.GetSubComponentIds (render material checks)",
     "Revit API - Room.GetBoundarySegments, Room.IsPointInRoom/UnboundedHeight, FamilyInstance FromRoom/ToRoom per Phase, door/window size and wall area/volume parameters (quantity takeoff)",
+    "Revit API - View-scoped FilteredElementCollector, ViewSheet.IsPlaceholder, FamilyInstance.get_ToRoom/get_FromRoom/get_Room(phase), Element.CreatedPhaseId/GroupId, ROOM_PHASE/VIEW_PHASE and Parameter.Set on ALL_MODEL_MARK/ROOM_NUMBER/SHEET_NUMBER (renumbering)",
+    "Revit API - Document.Export(String, IList<ElementId>, PDFExportOptions), PDFExportOptions, ViewSheetSet, ViewSheet.IsPlaceholder/CanBePrinted, sheet revision parameters and System.IO drive/attribute checks (PDF issue)",
+    "Revit API - Document.Phases, PhaseFilter.GetPhaseStatusPresentation, Element.HasPhases/ArePhasesModifiable/IsPhaseCreatedValid/IsPhaseDemolishedValid/CreatedPhaseId/DemolishedPhaseId and ElementMulticategoryFilter (phases)",
     "Revit API - User-supplied IronPython can invoke additional APIs under user review"
   ],
   "ai_llm_providers": []
