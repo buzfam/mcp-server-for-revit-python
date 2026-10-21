@@ -47,7 +47,11 @@ def register_material_check_tools(mcp, revit_get, revit_post):
         Painted faces (Paint tool) count as materials and are listed in
         "painted".
 
-        Materials are read per family type from one representative instance.
+        Materials are read per family type from one representative instance,
+        including its nested shared families (their materials count for the
+        parent; solids, meshes and nested families count as pieces). Types
+        whose geometry is only meshes (imported DWG/SKP/OBJ-like) get a
+        "note" and are counted in summary.mesh_only_types.
         Default categories: furniture, furniture systems, casework, generic
         models, plumbing fixtures, lighting fixtures, specialty equipment.
 

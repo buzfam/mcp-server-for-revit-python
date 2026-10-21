@@ -37,7 +37,7 @@ consegue verificar (cota visualmente certa, conteúdo das notas) volta como
 | `required_schedules` | list[regex] | Tabelas exigidas (nome da tabela posicionada; a tabela de revisões do carimbo é ignorada) |
 | `required_legends` | list[regex] | Legendas exigidas (vistas `Legend` na folha) |
 | `allowed_scales` | list[int] | Escalas permitidas (50 = 1:50) para as vistas da folha, exceto legendas |
-| `title_block_params` | list[str] | Parâmetros que precisam estar preenchidos: procurados na folha, depois na instância do carimbo, depois em Informações do projeto; pelo nome em português do Revit **ou** pelo nome do `BuiltInParameter` (`SHEET_ISSUE_DATE`) |
+| `title_block_params` | list[str] | Parâmetros que precisam estar preenchidos: procurados na folha, depois na instância do carimbo, depois no **tipo** do carimbo, depois em Informações do projeto; pelo nome em português do Revit **ou** pelo nome do `BuiltInParameter` (`SHEET_ISSUE_DATE`) |
 | `require_revision` | bool | Exige revisão atual na folha (`SHEET_CURRENT_REVISION`) |
 | `min_viewports` / `max_viewports` | int | Quantidade de vistas na folha (sem contar tabelas) |
 | `manual` | list[str] | Itens que só uma pessoa confere; voltam em `manual_checks` |
@@ -52,8 +52,14 @@ erro de digitação, tanto no wrapper quanto na rota.
   não mostra nenhum elemento de modelo. Checagem barata e aproximada:
   `FilteredElementCollector(doc, view.Id).WhereElementIsNotElementType().WhereElementIsViewIndependent()`
   excluindo níveis, eixos, planos de referência, câmeras, caixas de corte,
-  scope boxes e pontos base, e `GetElementCount() == 0`. Elementos de vínculo
-  (RVT/CAD) contam como conteúdo; uma vista só com anotações conta como vazia.
+  scope boxes, pontos base, vistas de elevação e marcas de elevação
+  (`OST_Elev`, `OST_ElevationMarks`, lidas por `getattr`), e
+  `FirstElementId()` inválido/`None` (para no primeiro elemento, sem contar
+  tudo). Resultado guardado por vista (a mesma vista em várias folhas é lida
+  uma vez) e limitado a 60 s por requisição: depois disso a checagem é pulada
+  (`empty: null`) e `summary.empty_check_skipped` conta quantas ficaram sem
+  checar. Elementos de vínculo (RVT/CAD) contam como conteúdo; uma vista só
+  com anotações conta como vazia.
 - `unplaced_views` (no relatório, não por folha): vistas que não estão em
   nenhuma folha, sem modelos de vista, vistas de navegador/sistema, relatórios,
   folhas e vistas não imprimíveis; tabelas só com `unplaced_include_schedules`.
@@ -173,6 +179,9 @@ escalas e parâmetros do carimbo precisam ser trocados pelos do template real.
   `routes.make_response`, sem `json.dumps` no IronPython.
 - Parâmetro tipo ElementId vazio (`InvalidElementId`) conta como vazio; textos
   só com espaços contam como vazios.
+- `allowed_scales` não vale para vistas 3D em perspectiva (`View.IsPerspective`):
+  a escala delas não tem sentido.
+- Corpo vazio ou ausente → valores padrão (só checagens genéricas), não 500.
 
 ## Revit API
 `ViewSheet` (`SheetNumber`, `IsPlaceholder`, `SHEET_CURRENT_REVISION`),
@@ -182,7 +191,8 @@ escalas e parâmetros do carimbo precisam ser trocados pelos do template real.
 `BuiltInCategory.OST_TitleBlocks` (`OwnerViewId`), `Element.GetParameters`,
 `Element.get_Parameter(BuiltInParameter)`, `Document.ProjectInformation`,
 `FilteredElementCollector(doc, viewId)` com `WhereElementIsViewIndependent`,
-`ElementMulticategoryFilter(..., inverted=True)` e `GetElementCount`.
+`ElementMulticategoryFilter(..., inverted=True)` e `FirstElementId`,
+`View.IsPerspective`, `Element.GetTypeId` (tipo do carimbo).
 Tudo existe no Revit 2024 (versão do escritório).
 
 ## Testes
@@ -191,13 +201,19 @@ Tudo existe no Revit 2024 (versão do escritório).
 - Unitário (rota, API falsa): `tests/unit/test_sheet_check_route_logic.py` —
   escolha da regra, cada tipo de problema, status, parâmetros pelo nome
   localizado/BuiltInParameter/Informações do projeto, filtro e limite,
-  vistas fora de folha, rota só leitura, 400 e 503.
+  vistas fora de folha, rota só leitura, 400 e 503; parâmetro no tipo do
+  carimbo, perspectiva sem checar escala, cache e orçamento de tempo da
+  checagem de vista vazia, corpo vazio.
 - IronPython: checagem dos helpers puros em `scripts/ironpython_check.py`.
 
 ## Validação manual no Revit
 - [ ] Rodar com o exemplo acima num RVT do escritório e conferir os problemas apontados.
 - [ ] `empty_viewport`: confirmar que vista com só vínculo conta como cheia e que
-      vista realmente vazia aparece; medir o tempo em projeto com muitas folhas.
+      vista realmente vazia aparece; medir o tempo em projeto com muitas folhas
+      (`summary.empty_check_skipped` deve ficar 0 num projeto normal).
+- [ ] Vista de elevação com só a marca de elevação e níveis conta como vazia.
+- [ ] Parâmetro de tipo do carimbo (ex.: nome do escritório) é achado.
+- [ ] Vista 3D em perspectiva numa folha com `allowed_scales` não gera problema `scale`.
 - [ ] `title_block_params` com nomes em português do carimbo real e com
       parâmetros que o carimbo lê de Informações do projeto.
 - [ ] `require_revision` em folha com e sem revisão emitida.

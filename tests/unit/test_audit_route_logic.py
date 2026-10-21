@@ -8,7 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.health", "revit_mcp.audit")
+MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.health", "revit_mcp.exports",
+           "revit_mcp.audit")
 
 
 def eid(value):
@@ -353,3 +354,53 @@ def test_route_validates_before_reading_the_model(audit, monkeypatch):
     assert response["status"] == 400 and "limit" in response["data"]["error"]
     ok = api.handler(FakeDoc(sample_model()), SimpleNamespace(data={"sections": ["filters"]}))
     assert ok["data"]["status"] == "success" and "filters" in ok["data"]["sections"]
+
+
+# ---- review fixes ----
+
+def test_purge_result_falls_back_when_api_answers_nothing(audit):
+    assert audit.purge_result(None, 3) is None
+    assert audit.purge_result([], 2) is None          # empty while instance counts find unused
+    assert audit.purge_result([], 0) == set()         # really nothing to purge
+    assert audit.purge_result([5, 6], 2) == {5, 6}
+
+
+def test_empty_get_unused_elements_uses_instance_counts(audit, monkeypatch):
+    monkeypatch.setattr(audit, "_empty_id_set", lambda: set())
+    report = build(audit, ["families", "materials", "purge_preview"], unused=[])
+    assert report["unused_source"] == "instance_count"
+    assert "unused_source_note" in report
+    assert report["sections"]["purge_preview"]["source"] == "instance_count"
+    families = {i["name"]: i for i in report["sections"]["families"]["items"]}
+    assert families[u"Cadeira"]["unused"] and not families[u"Porta simples"]["unused"]
+    assert report["sections"]["materials"]["unused_count"] is None
+
+
+def test_time_budget_skips_remaining_sections(audit):
+    options, _ = audit.parse_request({"sections": ["view_templates", "filters", "views"],
+                                      "naming": {"views": u".+"}})
+    ticks = iter([0.0, 0.0, 10.0, 300.0, 300.0, 300.0])
+    report = audit.build_audit(FakeDoc(sample_model()), options, budget_s=240.0,
+                               clock=lambda: next(ticks))
+    assert set(report["sections"]) == {"view_templates", "filters"}
+    assert report["section_errors"] == {"views": u"skipped: time budget",
+                                        "naming": u"skipped: time budget"}
+    assert report["time_budget"]["skipped_sections"] == ["naming", "views"]
+
+
+@pytest.mark.parametrize("body", [None, "", b""])
+def test_route_empty_body_uses_defaults(audit, monkeypatch, body):
+    monkeypatch.setattr(audit, "authorize_request", lambda request, action=None: None)
+
+    class Api:
+        def route(self, path, methods):
+            def decorator(function):
+                self.handler = function
+                return function
+            return decorator
+
+    api = Api()
+    audit.register_audit_routes(api)
+    response = api.handler(FakeDoc(sample_model()), SimpleNamespace(data=body))
+    assert "status" not in response or response.get("status") != 500
+    assert response["data"]["status"] == "success"

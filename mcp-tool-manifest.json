@@ -149,7 +149,7 @@
     },
     {
       "name": "quantities_by_rule",
-      "description": "Reads quantities by group (doors and windows, plumbing fixtures, walls, floors, ceilings, skirting, painting) with the measurement rule on each line, as JSON or CSV."
+      "description": "Reads quantities by group (doors and windows, plumbing fixtures, walls, floors, ceilings, skirting, painting) for one phase, with the measurement rule on each line, as JSON or CSV."
     },
     {
       "name": "renumber_elements",
@@ -157,7 +157,7 @@
     },
     {
       "name": "room_finishes",
-      "description": "Reads per-room finish quantities (floor, ceiling, gross and net wall area, skirting, painting) with the measurement rule behind each value."
+      "description": "Reads per-room finish quantities (floor, ceiling, gross and net wall area, skirting, painting) for one phase (new and existing, demolished excluded), with the measurement rule behind each value."
     },
     {
       "name": "save_document",

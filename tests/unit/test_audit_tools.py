@@ -17,7 +17,7 @@ class TestAuditTemplate:
     async def test_defaults_send_only_limit(self):
         await self.tool(ctx=None)
         self.mock_post.assert_called_once_with("/audit_template/", {"limit": 100}, None,
-                                               timeout=120.0)
+                                               timeout=300.0)
 
     async def test_sections_and_naming_are_sent_when_given(self):
         naming = {"views": u"^(PB|CT)-.+$", "sheet_numbers": r"^A\d{2}$"}

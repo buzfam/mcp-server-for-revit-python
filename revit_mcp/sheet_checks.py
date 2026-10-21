@@ -8,14 +8,15 @@ sheet). Read-only: no transaction.
 """
 
 from pyrevit import routes, DB
-import json
 import logging
 import re
+import time
 from .security import authorize_request
 from .utils import normalize_string, element_id_value
 from .sheets import name_key, element_name
 from .health import NON_PLACEABLE_VIEW_TYPES
 from .parameters import _builtin_parameter
+from .exports import _parse_body
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,9 @@ EMPTY_CHECK_TYPES = ("FloorPlan", "CeilingPlan", "EngineeringPlan", "AreaPlan", 
 # Datum and helper categories that do not make a view "non-empty".
 DATUM_CATEGORIES = ("OST_Levels", "OST_Grids", "OST_CLines", "OST_Cameras", "OST_Viewers",
                     "OST_SectionBox", "OST_VolumeOfInterest", "OST_ProjectBasePoint",
-                    "OST_SharedBasePoint")
+                    "OST_SharedBasePoint", "OST_Elev", "OST_ElevationMarks")
+# Seconds spent on "empty viewport" checks per request; after that they are skipped.
+EMPTY_CHECK_BUDGET_S = 60.0
 # Problems that need a look, not something missing on the sheet.
 REVIEW_CHECKS = ("scale", "empty_viewport", "viewport_count")
 
@@ -315,7 +318,8 @@ def evaluate_sheet(info, rule, generic):
         if allowed:
             for view in views:
                 scale = view.get("scale")
-                if view.get("type") == "Legend" or not _integer(scale) or scale <= 0:
+                if view.get("type") == "Legend" or view.get("perspective") \
+                        or not _integer(scale) or scale <= 0:
                     continue
                 if scale not in allowed:
                     add("scale", u"vista '{}' em 1:{} (permitidas: {})".format(
@@ -327,7 +331,7 @@ def evaluate_sheet(info, rule, generic):
                 add("title_block_param", u"parâmetro '{}' vazio".format(normalize_string(name)))
             elif state != "ok":
                 add("title_block_param", u"parâmetro '{}' não encontrado na folha, no carimbo "
-                                         u"nem nas informações do projeto".format(
+                                         u"(instância ou tipo) nem nas informações do projeto".format(
                                              normalize_string(name)))
         if rule.get("require_revision") and not _text(info.get("revision")):
             add("revision", u"folha sem revisão atual")
@@ -392,16 +396,51 @@ def _datum_filter():
 
 
 def _is_empty(doc, view, datum_filter):
-    """True when no model element is visible in the view; None when unknown."""
+    """True when no model element is visible in the view; None when unknown.
+    Stops at the first element found (FirstElementId), no full count."""
     try:
         collector = DB.FilteredElementCollector(doc, view.Id).WhereElementIsNotElementType() \
             .WhereElementIsViewIndependent()
         if datum_filter is not None:
             collector = collector.WherePasses(datum_filter)
-        return collector.GetElementCount() == 0
+        first = collector.FirstElementId()
+        return first is None or first == DB.ElementId.InvalidElementId
     except Exception as error:
         logger.debug("Empty check failed for view %s: %s", element_id_value(view.Id), error)
         return None
+
+
+class EmptyChecker(object):
+    """Empty-viewport checks cached per view and limited by a time budget."""
+
+    def __init__(self, doc, datum_filter, budget_s=EMPTY_CHECK_BUDGET_S, clock=None):
+        self.doc, self.datum_filter = doc, datum_filter
+        self.budget_s = budget_s
+        self.clock = clock or time.time
+        self.started = None
+        self.cache = {}
+        self.skipped = 0
+
+    def check(self, view):
+        """True/False/None like _is_empty; None also when the budget is spent."""
+        key = element_id_value(view.Id)
+        if key in self.cache:
+            return self.cache[key]
+        now = self.clock()
+        if self.started is None:
+            self.started = now
+        if now - self.started > self.budget_s:
+            self.skipped += 1
+            return None
+        self.cache[key] = _is_empty(self.doc, view, self.datum_filter)
+        return self.cache[key]
+
+
+def _is_perspective(view):
+    try:
+        return bool(view.IsPerspective)
+    except Exception:
+        return False
 
 
 def _parameter_text(parameter):
@@ -524,7 +563,7 @@ def check_sheets(doc, options):
     title_blocks = _group_by_owner(
         DB.FilteredElementCollector(doc).OfCategory(DB.BuiltInCategory.OST_TitleBlocks)
         .WhereElementIsNotElementType(), lambda t: t.OwnerViewId)
-    datum_filter = _datum_filter() if generic else None
+    checker = EmptyChecker(doc, _datum_filter()) if generic else None
     project_info = getattr(doc, "ProjectInformation", None)
 
     results = []
@@ -541,8 +580,10 @@ def check_sheets(doc, options):
             view_type = str(view.ViewType)
             entry = {"name": element_name(view), "type": view_type, "scale": _scale(view),
                      "empty": None}
+            if view_type == "ThreeD" and _is_perspective(view):
+                entry["perspective"] = True
             if generic and view_type in EMPTY_CHECK_TYPES:
-                entry["empty"] = _is_empty(doc, view, datum_filter)
+                entry["empty"] = checker.check(view)
             views.append(entry)
         schedule_names = []
         for instance in schedules.get(sheet_id, []):
@@ -550,7 +591,16 @@ def check_sheets(doc, options):
         blocks = title_blocks.get(sheet_id, [])
         params = {}
         if rule is not None:
-            owners = [sheet] + blocks + ([project_info] if project_info is not None else [])
+            block_types = []
+            for block in blocks:
+                try:
+                    block_type = doc.GetElement(block.GetTypeId())
+                except Exception:
+                    block_type = None
+                if block_type is not None:
+                    block_types.append(block_type)
+            owners = [sheet] + blocks + block_types + \
+                ([project_info] if project_info is not None else [])
             for param_name in rule.get("title_block_params") or []:
                 params[param_name] = parameter_state(owners, param_name)
         revision = _revision(sheet)
@@ -566,6 +616,8 @@ def check_sheets(doc, options):
     summary = summarize(results)
     summary.update({"sheets_total": total, "truncated": total > len(results),
                     "placeholders_skipped": len(placeholders), "not_found": not_found})
+    if checker is not None:
+        summary["empty_check_skipped"] = checker.skipped
     report = {"status": "success", "summary": summary,
               "sheets": [r for r in results
                          if not (options["only_problems"] and r["status"] == "ok")]}
@@ -601,8 +653,7 @@ def register_sheet_check_routes(api):
         try:
             if not doc:
                 return routes.make_response(data={"error": "No active Revit document"}, status=503)
-            data = json.loads(request.data) if isinstance(request.data, str) else request.data
-            options, error, errors = parse_options(data)
+            options, error, errors = parse_options(_parse_body(request))
             if error:
                 body = {"error": error}
                 if errors:

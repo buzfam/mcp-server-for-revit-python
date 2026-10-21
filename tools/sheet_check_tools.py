@@ -160,13 +160,16 @@ def register_sheet_check_tools(mcp, revit_get, revit_post):
         ^ and $ to anchor). view_type is a Revit ViewType name: FloorPlan,
         CeilingPlan, Section, Elevation, Detail, DraftingView, Legend, ThreeD,
         AreaPlan, EngineeringPlan. title_block_params are looked up on the sheet,
-        then its title block, then Project Information, by the name shown in
-        Revit (Portuguese) or by BuiltInParameter name, and must be non-empty.
+        then its title block (instance, then type), then Project Information,
+        by the name shown in Revit (Portuguese) or by BuiltInParameter name, and
+        must be non-empty. allowed_scales is not checked for perspective 3D views.
 
         Generic checks (generic=true): sheet without views or schedules, sheet
         without title block, viewport whose plan/section/elevation/3D shows no
-        model element (approximate), and views not placed on any sheet (count by
-        type plus up to unplaced_limit names). Placeholder sheets are skipped.
+        model element (approximate; after about 60 s these checks stop and
+        summary.empty_check_skipped counts the viewports left unchecked), and
+        views not placed on any sheet (count by type plus up to unplaced_limit
+        names). Placeholder sheets are skipped.
 
         Each sheet returns status "missing" (something required is absent),
         "review" (scale out of the list, empty viewport, viewport count, or

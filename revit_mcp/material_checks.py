@@ -36,6 +36,10 @@ FURNITURE_CATEGORIES = (
     "OST_Furniture", "OST_FurnitureSystems", "OST_Casework", "OST_GenericModel",
     "OST_PlumbingFixtures", "OST_LightingFixtures", "OST_SpecialityEquipment",
 )
+# Nested shared families read below the parent (sub-sub-components too).
+MAX_SUBCOMPONENT_DEPTH = 3
+MESH_ONLY_NOTE = (u"Geometry has only meshes (imported DWG/SKP/OBJ-like geometry, no Revit "
+                  u"solids): materials may come from the import, check the render by eye.")
 RULES = ("name_pattern", "duplicate_names", "generic_shared", "single_material",
          "category_material_only", "no_material")
 _FALLBACK_ACCENTS = {
@@ -141,10 +145,33 @@ def shared_materials(records, max_families):
     return shared
 
 
+def merge_ids(first, second):
+    """first + the ids of second not in it, order kept."""
+    result = list(first or [])
+    for value in second or []:
+        if value not in result:
+            result.append(value)
+    return result
+
+
+def piece_count(counts, subcomponents):
+    """Pieces = solids with volume + meshes + nested shared subcomponents.
+    counts: {"solids", "meshes"} or None when the geometry could not be read."""
+    if counts is None:
+        return None
+    return counts.get("solids", 0) + counts.get("meshes", 0) + (subcomponents or 0)
+
+
+def mesh_only(counts):
+    return counts is not None and not counts.get("solids") and counts.get("meshes", 0) > 0
+
+
 def type_problems(record, min_materials, names):
     """Rules 4-6 for one family type. names: {material_id: name}."""
     base = {"family": record.get("family"), "type": record.get("type"),
             "category": record.get("category"), "element_id": record.get("element_id")}
+    if record.get("mesh_only"):
+        base["note"] = MESH_ONLY_NOTE
     painted = [names.get(m, u"{}".format(m)) for m in record.get("paint_ids") or []]
     if painted:
         base["painted"] = painted
@@ -219,6 +246,7 @@ def check_records(records, names, regex, max_families, min_materials):
     for problem in problems:
         summary[problem["rule"]] += 1
     summary["painted_types"] = sum(1 for r in records if r.get("paint_ids"))
+    summary["mesh_only_types"] = sum(1 for r in records if r.get("mesh_only"))
     order = {"error": 0, "review": 1}
     problems.sort(key=lambda p: (order.get(p["severity"], 2), RULES.index(p["rule"])))
     return summary, problems
@@ -341,32 +369,63 @@ def _resolve_view(doc, ref):
     return None, u"View '{}' not found".format(normalize_string(ref))
 
 
-def _count_pieces(element, options):
-    """Solids with volume in the geometry + nested shared subcomponents."""
-    def solids(geometry):
-        count = 0
+def _geometry_counts(element, options):
+    """{"solids": solids with volume, "meshes": meshes} in the geometry, or None."""
+    counts = {"solids": 0, "meshes": 0}
+    mesh_class = getattr(DB, "Mesh", None)
+
+    def walk(geometry):
         if geometry is None:
-            return 0
+            return
         for item in geometry:
             if isinstance(item, DB.Solid):
                 try:
                     if item.Volume > 0:
-                        count += 1
+                        counts["solids"] += 1
                 except Exception:
                     pass
+            elif mesh_class is not None and isinstance(item, mesh_class):
+                counts["meshes"] += 1
             elif isinstance(item, DB.GeometryInstance):
-                count += solids(item.GetInstanceGeometry())
-        return count
+                walk(item.GetInstanceGeometry())
 
     try:
-        pieces = solids(element.get_Geometry(options))
+        walk(element.get_Geometry(options))
     except Exception:
         return None
+    return counts
+
+
+def _subcomponents(doc, element, depth=MAX_SUBCOMPONENT_DEPTH, seen=None):
+    """Nested shared family instances under element (recursively, capped)."""
+    seen = set() if seen is None else seen
+    result = []
+    if depth <= 0:
+        return result
     try:
-        pieces += len(list(element.GetSubComponentIds()))
+        ids = list(element.GetSubComponentIds())
     except Exception:
-        pass
-    return pieces
+        return result
+    for sub_id in ids:
+        key = element_id_value(sub_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        sub = doc.GetElement(sub_id)
+        if sub is None:
+            continue
+        result.append(sub)
+        result.extend(_subcomponents(doc, sub, depth - 1, seen))
+    return result
+
+
+def _material_ids(element):
+    """(geometry material ids, paint material ids) of one element."""
+    try:
+        return _ids(element.GetMaterialIds(False)), _ids(element.GetMaterialIds(True))
+    except Exception as e:
+        logger.warning("Could not read materials of %s: %s", element_id_value(element.Id), e)
+        return [], []
 
 
 def collect_type_records(doc, categories, view):
@@ -405,18 +464,23 @@ def collect_type_records(doc, categories, view):
                       or category_name)
             type_name = (_parameter_text(element_type, DB.BuiltInParameter.SYMBOL_NAME_PARAM)
                          or _safe_name(element_type) or _safe_name(element))
-            try:
-                material_ids = _ids(element.GetMaterialIds(False))
-                paint_ids = _ids(element.GetMaterialIds(True))
-            except Exception as e:
-                logger.warning("Could not read materials of %s: %s", element_id_value(element.Id), e)
-                material_ids, paint_ids = [], []
+            material_ids, paint_ids = _material_ids(element)
+            # Shared nested families are separate elements: their materials are
+            # not in the parent's GetMaterialIds but reach the renderer with it.
+            subs = _subcomponents(doc, element)
+            for sub in subs:
+                sub_materials, sub_paint = _material_ids(sub)
+                material_ids = merge_ids(material_ids, sub_materials)
+                paint_ids = merge_ids(paint_ids, sub_paint)
+            counts = _geometry_counts(element, options) if is_furniture else None
             records[key] = {
                 "family": family, "type": type_name, "category": category_name,
                 "element_id": element_id_value(element.Id), "instances": 1,
                 "material_ids": material_ids, "paint_ids": paint_ids,
                 "category_material_id": category_material_id, "is_furniture": is_furniture,
-                "pieces": _count_pieces(element, options) if is_furniture else None,
+                "pieces": piece_count(counts, len(subs)) if is_furniture else None,
+                "subcomponents": len(subs),
+                "mesh_only": mesh_only(counts),
             }
     return list(records.values()), elements
 
@@ -499,7 +563,8 @@ def register_material_check_routes(api):
                 "returned": len(returned),
                 "truncated": truncated,
                 "problems": returned,
-                "method": "one representative instance per family type",
+                "method": "one representative instance per family type (with its nested "
+                          "shared families)",
             }
             if view is not None:
                 result["view"] = {"id": element_id_value(view.Id), "name": _safe_name(view)}

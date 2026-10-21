@@ -11,7 +11,7 @@ from pyrevit import routes, DB
 import logging
 import math
 from .security import authorize_request
-from .utils import element_id_value
+from .utils import element_id_value, normalize_string
 from .exports import (csv_text, room_status, _parse_body, _safe_name, _parameter_text, _key,
                       SQFT_TO_M2, FT_TO_M, CUFT_TO_M3)
 
@@ -21,7 +21,7 @@ DEFAULT_LIMIT = 200
 MAX_LIMIT = 1000
 MAX_WALL_HEIGHT_M = 20.0
 MAX_ROUNDING = 4
-DEDUCT_MODES = ("over_threshold", "all", "none")
+DEDUCT_MODES = ("over_threshold", "excess_over_threshold", "all", "none")
 DEFAULT_RULES = {
     "deduct_openings": "over_threshold",
     "deduct_openings_over_m2": 2.0,
@@ -48,6 +48,11 @@ WINDOW_SIZE_PARAMS = (("WINDOW_WIDTH", "WINDOW_HEIGHT"),
                       ("FAMILY_WIDTH_PARAM", "FAMILY_HEIGHT_PARAM"),
                       ("FAMILY_ROUGH_WIDTH_PARAM", "FAMILY_ROUGH_HEIGHT_PARAM"))
 KIND_LABELS = {"door": u"Porta", "window": u"Janela"}
+# Phase status of an element in the measured phase that is counted (demolished,
+# temporary and future elements are not part of the final building).
+KEPT_PHASE_STATUSES = ("New", "Existing")
+# Test point height above the room location point, in feet (internal units).
+POINT_Z_OFFSET_FT = 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -132,14 +137,30 @@ def with_waste(value, percent):
     return value * (1.0 + percent / 100.0)
 
 
-def opening_deducted(area_m2, rules):
-    """True when an opening of this area is deducted from the wall area."""
+def opening_deduction(area_m2, rules):
+    """m2 deducted from the wall for one opening of this area.
+
+    over_threshold: the whole opening when its area is above the threshold;
+    excess_over_threshold: only the part above the threshold (SINAPI/TCPO-like);
+    all: every opening; none: nothing. Openings without a size: nothing."""
     mode = rules["deduct_openings"]
-    if mode == "all":
-        return True
     if mode == "none" or area_m2 is None:
-        return False
-    return area_m2 > rules["deduct_openings_over_m2"] + AREA_EPSILON
+        return 0.0
+    if mode == "all":
+        return area_m2
+    threshold = rules["deduct_openings_over_m2"]
+    if area_m2 <= threshold + AREA_EPSILON:
+        return 0.0
+    if mode == "excess_over_threshold":
+        return area_m2 - threshold
+    return area_m2
+
+
+def opening_deducted(area_m2, rules):
+    """True when an opening of this area is (partly) deducted from the wall area."""
+    if rules["deduct_openings"] == "all":
+        return True
+    return opening_deduction(area_m2, rules) > 0
 
 
 def net_wall_area(gross_m2, opening_areas, rules):
@@ -149,7 +170,7 @@ def net_wall_area(gross_m2, opening_areas, rules):
     kept_count = 0
     for area in opening_areas:
         if opening_deducted(area, rules):
-            deducted += area
+            deducted += opening_deduction(area, rules)
             deducted_count += 1
         else:
             kept_count += 1
@@ -219,13 +240,16 @@ def room_measures(raw, rules):
             "painting": painting, "painting_walls": walls["net"], "painting_ceiling": ceiling}
 
 
-def rule_texts(rules):
+def rule_texts(rules, phase_name=None):
     """Measurement criteria in pt-BR, one per measured value."""
     mode = rules["deduct_openings"]
     if mode == "all":
         openings = u"todos os vãos de portas e janelas descontados"
     elif mode == "none":
         openings = u"nenhum vão descontado (área bruta)"
+    elif mode == "excess_over_threshold":
+        openings = (u"descontado só o que excede {:.2f} m² em cada vão (vão menor ou igual: "
+                    u"nada descontado)").format(rules["deduct_openings_over_m2"])
     else:
         openings = u"descontados só os vãos com área acima de {:.2f} m²".format(
             rules["deduct_openings_over_m2"])
@@ -243,12 +267,12 @@ def rule_texts(rules):
         modeled = u"área do ambiente ({} modelados ignorados)"
     digits = rules["rounding"]
     waste = rules["waste_percent"]
-    return {
+    texts = {
         "paredes": (u"área de parede = comprimento do contorno do ambiente na face de acabamento "
-                    u"(só trechos com parede ou pilar) × altura; altura: {}; vãos: {} "
-                    u"(portas e janelas que limitam o ambiente, pela fase do ambiente)"
+                    u"(só trechos com parede ou pilar; paredes cortina fora) × altura; altura: {}; "
+                    u"vãos: {} (portas e janelas que limitam o ambiente, pela fase do ambiente)"
                     ).format(height, openings),
-        "rodape": (u"rodapé = comprimento do contorno com parede" + (
+        "rodape": (u"rodapé = comprimento do contorno com parede (sem paredes cortina)" + (
             u" menos a largura das portas do ambiente" if rules["skirting_subtract_doors"]
             else u", sem descontar portas")),
         "piso": u"área de piso = " + modeled.format(u"pisos"),
@@ -256,7 +280,8 @@ def rule_texts(rules):
         "pintura": u"pintura = área líquida de paredes (regra acima) + área de forro",
         "alvenaria": (u"área bruta = comprimento da linha de localização × altura desconectada, "
                       u"uma face; área líquida: {}; volume calculado pelo Revit; paredes cortina "
-                      u"e paredes no local excluídas").format(openings),
+                      u"e paredes no local excluídas; parede empilhada contada uma vez (a "
+                      u"empilhada, não as subparedes)").format(openings),
         "esquadrias": (u"contagem por família, tipo e dimensões; largura × altura pelos parâmetros "
                        u"da instância ou do tipo (ver size_source); área = largura × altura × "
                        u"quantidade"),
@@ -268,10 +293,86 @@ def rule_texts(rules):
                    .format(waste)),
         "unidades": u"m, m², m³ e un (convertidos das unidades internas do Revit)",
     }
+    if phase_name is not None:
+        texts["fase"] = (u"ambientes da fase {0}; demais elementos novos e existentes na fase {0}; "
+                         u"demolidos excluídos").format(phase_name)
+    return texts
 
 
-def rules_block(rules):
-    return {"applied": dict(rules), "criteria": rule_texts(rules), "units": dict(UNITS)}
+def rules_block(rules, phase_name=None):
+    block = {"applied": dict(rules), "criteria": rule_texts(rules, phase_name),
+             "units": dict(UNITS)}
+    if phase_name is not None:
+        block["phase"] = phase_name
+    return block
+
+
+def phase_ref_error(value):
+    """Shape check of the phase input (name or id); None is the last phase."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return "phase must be a phase name or id"
+    if isinstance(value, (int, long)):
+        return None if value > 0 else "phase must be a positive phase id"
+    if isinstance(value, basestring) and value.strip():
+        return None
+    return "phase must be a phase name or id"
+
+
+def resolve_phase(phases, value):
+    """Index in phases [(id, name)] (project order) of the phase given by id or
+    name; None means the last phase. Returns (index, error)."""
+    if not phases:
+        return None, "the project has no phases"
+    if value is None:
+        return len(phases) - 1, None
+    wanted_id = None
+    if isinstance(value, (int, long)) and not isinstance(value, bool):
+        wanted_id = int(value)
+    else:
+        wanted = _key(value)
+        for index, (_, name) in enumerate(phases):
+            if _key(name) == wanted:
+                return index, None
+        if value.strip().isdigit():
+            wanted_id = int(value.strip())
+    if wanted_id is not None:
+        for index, (phase_id, _) in enumerate(phases):
+            if phase_id == wanted_id:
+                return index, None
+    return None, u"phase '{}' not found; phases: {}".format(
+        normalize_string(u"{}".format(value)), u", ".join(name or u"?" for _, name in phases))
+
+
+def phase_status_kept(status_name):
+    """True for the ElementOnPhaseStatus names that are measured."""
+    return status_name in KEPT_PHASE_STATUSES
+
+
+def stacked_volume(own_volume, member_volumes):
+    """Volume of a stacked wall: its own when Revit gives one, else the members' sum."""
+    if own_volume:
+        return own_volume
+    known = [v for v in member_volumes if v]
+    return sum(known) if known else None
+
+
+def in_box(point, box):
+    """point (x, y) inside box (min x, min y, max x, max y); no box: True."""
+    if box is None:
+        return True
+    return box[0] <= point[0] <= box[2] and box[1] <= point[1] <= box[3]
+
+
+def room_point_z(location_z, level_elevation):
+    """Z (ft) of the point tested with IsPointInRoom: room location point + 1 ft,
+    else the level's ProjectElevation + 1 ft, else 1 ft."""
+    if is_number(location_z):
+        return location_z + POINT_Z_OFFSET_FT
+    if is_number(level_elevation):
+        return level_elevation + POINT_Z_OFFSET_FT
+    return POINT_Z_OFFSET_FT
 
 
 def make_line(group, item, measure, unit, quantity, rule, rules, extra=None):
@@ -407,6 +508,9 @@ def room_output(raw, rules):
     if raw["separation_length_m"] > 0:
         notes.append(u"{:.2f} m do contorno são linhas separadoras (sem parede): fora de "
                      u"paredes, pintura e rodapé".format(raw["separation_length_m"]))
+    if raw.get("curtain_length_m"):
+        notes.append(u"{:.2f} m do contorno são paredes cortina: fora de paredes, pintura e "
+                     u"rodapé".format(raw["curtain_length_m"]))
     if walls["gross"] is None:
         notes.append(u"altura desconhecida: informe rules.wall_height_m")
     openings = []
@@ -416,7 +520,8 @@ def room_output(raw, rules):
             "family": opening["family"], "type": opening["type"],
             "width_m": r(opening["width_m"]), "height_m": r(opening["height_m"]),
             "area_m2": r(opening["area_m2"]), "size_source": opening["size_source"],
-            "deducted": opening_deducted(opening["area_m2"], rules)})
+            "deducted": opening_deducted(opening["area_m2"], rules),
+            "deducted_m2": r(opening_deduction(opening["area_m2"], rules))})
     return {
         "element_id": raw["element_id"], "number": raw["number"], "name": raw["name"],
         "level": raw["level"], "phase": raw["phase"],
@@ -427,7 +532,9 @@ def room_output(raw, rules):
                   "element_ids": raw["floor_ids"], "note": raw["floor_note"]},
         "ceiling": {"area_m2": r(raw["ceiling_m2"]), "source": raw["ceiling_source"],
                     "element_ids": raw["ceiling_ids"], "note": raw["ceiling_note"]},
-        "walls": {"boundary_length_m": r(raw["wall_length_m"]), "height_m": r(raw["height_m"]),
+        "walls": {"boundary_length_m": r(raw["wall_length_m"]),
+                  "curtain_length_m": r(raw.get("curtain_length_m") or 0.0),
+                  "height_m": r(raw["height_m"]),
                   "gross_m2": r(walls["gross"]), "net_m2": r(walls["net"]),
                   "deducted_m2": r(walls["deducted"]),
                   "openings_deducted": walls["deducted_count"],
@@ -503,6 +610,31 @@ def _double(element, builtin_name):
         return None
 
 
+def _integer_param(element, builtin_name):
+    """An Integer parameter value, or None."""
+    builtin = getattr(DB.BuiltInParameter, builtin_name, None)
+    if element is None or builtin is None:
+        return None
+    try:
+        parameter = element.get_Parameter(builtin)
+        if parameter is None or not parameter.HasValue:
+            return None
+        return parameter.AsInteger()
+    except Exception:
+        return None
+
+
+def on_phase(element, phase):
+    """True when the element is New or Existing in the phase (no phase: True).
+    Elements whose status cannot be read are kept."""
+    if phase is None:
+        return True
+    try:
+        return phase_status_kept(str(element.GetPhaseStatus(phase.Id)))
+    except Exception:
+        return True
+
+
 def _family_and_type(doc, element):
     symbol = doc.GetElement(element.GetTypeId())
     family = None
@@ -549,12 +681,15 @@ def _opening_record(doc, instance, kind, level_cache):
     }
 
 
-def collect_openings(doc, level_cache):
-    """[(record, FamilyInstance)] for every door and window instance."""
+def collect_openings(doc, level_cache, phase=None):
+    """[(record, FamilyInstance)] for every door and window instance
+    (only New/Existing in the phase when one is given)."""
     result = []
     for kind, category in (("door", "OST_Doors"), ("window", "OST_Windows")):
         for instance in _elements(doc, category):
             if not isinstance(instance, DB.FamilyInstance):
+                continue
+            if not on_phase(instance, phase):
                 continue
             try:
                 result.append((_opening_record(doc, instance, kind, level_cache), instance))
@@ -563,29 +698,37 @@ def collect_openings(doc, level_cache):
     return result
 
 
-def openings_by_room(openings, phase):
-    """{room id: [opening records]} from FromRoom/ToRoom in the given phase."""
+def openings_by_room(openings, phase, stats=None):
+    """{room id: [opening records]} from FromRoom/ToRoom in the given phase.
+    stats["unreadable"] counts openings whose rooms could not be read."""
     mapping = {}
     for record, instance in openings:
         room_ids = set()
+        failed = False
         for getter in ("get_FromRoom", "get_ToRoom"):
             try:
                 room = getattr(instance, getter)(phase) if phase is not None \
                     else getattr(instance, getter[4:])
             except Exception:
                 room = None
+                failed = True
             if room is not None:
                 room_ids.add(element_id_value(room.Id))
+        if failed and not room_ids and stats is not None:
+            stats["unreadable"] = stats.get("unreadable", 0) + 1
         for room_id in room_ids:
             mapping.setdefault(room_id, []).append(record)
     return mapping
 
 
-def collect_hosts(doc, category_name, level_cache):
-    """Floors or ceilings with type, level, area and plan centre."""
+def collect_hosts(doc, category_name, level_cache, phase=None):
+    """Floors or ceilings with type, level, area, plan centre and structural flag
+    (only New/Existing in the phase when one is given)."""
     result = []
     for element in _elements(doc, category_name) or []:
         try:
+            if not on_phase(element, phase):
+                continue
             area = _double(element, "HOST_AREA_COMPUTED")
             box = element.get_BoundingBox(None)
             if not area or box is None:
@@ -598,6 +741,7 @@ def collect_hosts(doc, category_name, level_cache):
                 "area_m2": area * SQFT_TO_M2,
                 "centre": ((box.Min.X + box.Max.X) / 2.0, (box.Min.Y + box.Max.Y) / 2.0),
                 "offset_m": (_double(element, "CEILING_HEIGHTABOVELEVEL_PARAM") or 0.0) * FT_TO_M,
+                "structural": _integer_param(element, "FLOOR_PARAM_IS_STRUCTURAL") == 1,
             })
         except Exception as e:
             logger.warning("Could not read %s element: %s", category_name, e)
@@ -607,25 +751,41 @@ def collect_hosts(doc, category_name, level_cache):
 class TakeoffContext(object):
     """Model data read once per request and shared by every room."""
 
-    def __init__(self, doc, rules):
+    def __init__(self, doc, rules, phase=None, need_floors=True, need_ceilings=True,
+                 need_openings=True):
         self.doc = doc
         self.rules = rules
+        self.phase = phase
         self.level_cache = {}
         self.options = DB.SpatialElementBoundaryOptions()
         self.options.SpatialElementBoundaryLocation = DB.SpatialElementBoundaryLocation.Finish
-        self.openings = collect_openings(doc, self.level_cache)
+        self.openings = collect_openings(doc, self.level_cache, phase) if need_openings else []
         self.by_phase = {}
-        if rules["use_modeled_elements"]:
-            self.floors = collect_hosts(doc, "OST_Floors", self.level_cache)
-            self.ceilings = collect_hosts(doc, "OST_Ceilings", self.level_cache)
-        else:
-            self.floors, self.ceilings = [], []
+        self.opening_stats = {}
+        self.structural_floors = []
+        self.floors, self.ceilings = [], []
+        if rules["use_modeled_elements"] and need_floors:
+            floors = collect_hosts(doc, "OST_Floors", self.level_cache, phase)
+            self.floors = [f for f in floors if not f["structural"]]
+            self.structural_floors = [f for f in floors if f["structural"]]
+        if rules["use_modeled_elements"] and need_ceilings:
+            self.ceilings = collect_hosts(doc, "OST_Ceilings", self.level_cache, phase)
+        self._by_level = {}
         self._last_phase = None
         try:
             phases = list(doc.Phases)
             self._last_phase = phases[-1] if phases else None
         except Exception:
             pass
+
+    def hosts_on_level(self, kind, level_key):
+        """Floors or ceilings of one level (index built once per kind)."""
+        if kind not in self._by_level:
+            index = {}
+            for host in getattr(self, kind):
+                index.setdefault(host["level_key"], []).append(host)
+            self._by_level[kind] = index
+        return self._by_level[kind].get(level_key, [])
 
     def room_phase(self, room):
         phase = None
@@ -635,18 +795,36 @@ class TakeoffContext(object):
                 phase = self.doc.GetElement(parameter.AsElementId())
         except Exception:
             phase = None
-        return phase or self._last_phase
+        return phase or self.phase or self._last_phase
 
     def room_openings(self, room, phase):
         key = element_id_value(phase.Id) if phase is not None else None
         if key not in self.by_phase:
-            self.by_phase[key] = openings_by_room(self.openings, phase)
+            stats = {}
+            self.by_phase[key] = openings_by_room(self.openings, phase, stats)
+            self.opening_stats[key] = stats
         return self.by_phase[key].get(element_id_value(room.Id), [])
+
+    def unreadable_openings(self):
+        return max([stats.get("unreadable", 0) for stats in self.opening_stats.values()] or [0])
+
+
+def _is_curtain_wall(doc, element):
+    wall_class = getattr(DB, "Wall", None)
+    curtain = getattr(getattr(DB, "WallKind", None), "Curtain", None)
+    if wall_class is None or curtain is None or not isinstance(element, wall_class):
+        return False
+    try:
+        wall_type = doc.GetElement(element.GetTypeId())
+        return wall_type is not None and wall_type.Kind == curtain
+    except Exception:
+        return False
 
 
 def room_boundary(doc, room, options):
-    """(perimeter, wall length, separation length) in m on the finish faces."""
-    perimeter = wall = separation = 0.0
+    """(perimeter, wall length, separation length, curtain wall length) in m on
+    the finish faces. Curtain walls are not walls to paint or skirt."""
+    perimeter = wall = separation = curtain = 0.0
     loops = room.GetBoundarySegments(options)
     for loop in loops or []:
         for segment in loop:
@@ -655,15 +833,32 @@ def room_boundary(doc, room, options):
             element = None if _invalid(segment.ElementId) else doc.GetElement(segment.ElementId)
             if element is None or isinstance(element, DB.CurveElement):
                 separation += length
+            elif _is_curtain_wall(doc, element):
+                curtain += length
             else:
                 wall += length
-    return perimeter, wall, separation
+    return perimeter, wall, separation, curtain
 
 
-def _hosts_in_room(room, hosts, level_key, z):
+def _room_box(room):
+    """(min x, min y, max x, max y) of the room in feet, or None."""
+    try:
+        box = room.get_BoundingBox(None)
+    except Exception:
+        return None
+    if box is None:
+        return None
+    return (box.Min.X, box.Min.Y, box.Max.X, box.Max.Y)
+
+
+def _hosts_in_room(room, hosts, level_key, z, room_box=None):
+    """Hosts on the level whose plan centre is in the room. room_box (optional)
+    skips IsPointInRoom for centres outside the room's bounding box."""
     found = []
     for host in hosts:
         if host["level_key"] != level_key:
+            continue
+        if not in_box(host["centre"], room_box):
             continue
         try:
             if room.IsPointInRoom(DB.XYZ(host["centre"][0], host["centre"][1], z)):
@@ -677,16 +872,29 @@ def room_raw(context, room, level, number):
     """Unrounded measures of one room (m, m2), see room_output."""
     doc = context.doc
     rules = context.rules
-    perimeter, wall_length, separation = room_boundary(doc, room, context.options)
+    perimeter, wall_length, separation, curtain = room_boundary(doc, room, context.options)
     level_key = None if _invalid(room.LevelId) else element_id_value(room.LevelId)
     level_element = doc.GetElement(room.LevelId) if level_key is not None else None
-    # ProjectElevation is in model coordinates, like the bounding boxes (1 ft above the level).
-    z = (level_element.ProjectElevation if level_element is not None else 0.0) + 1.0
+    # Internal coordinates, like the bounding boxes: room location point + 1 ft
+    # (fallback: the level's ProjectElevation, never Level.Elevation).
+    location_z = None
+    try:
+        location_z = room.Location.Point.Z
+    except Exception:
+        pass
+    level_z = None
+    try:
+        level_z = level_element.ProjectElevation if level_element is not None else None
+    except Exception:
+        pass
+    z = room_point_z(location_z, level_z)
     room_area = room.Area * SQFT_TO_M2
     notes = []
 
-    floors = _hosts_in_room(room, context.floors, level_key, z)
-    ceilings = _hosts_in_room(room, context.ceilings, level_key, z)
+    box = _room_box(room)
+    floors = _hosts_in_room(room, context.hosts_on_level("floors", level_key), level_key, z, box)
+    ceilings = _hosts_in_room(room, context.hosts_on_level("ceilings", level_key), level_key, z,
+                              box)
     floor_m2, floor_source, floor_note = choose_area(
         [f["area_m2"] for f in floors], room_area, rules["use_modeled_elements"])
     ceiling_m2, ceiling_source, ceiling_note = choose_area(
@@ -712,6 +920,7 @@ def room_raw(context, room, level, number):
         "level": level, "phase": _safe_name(phase),
         "room_area_m2": room_area, "perimeter_m": perimeter,
         "wall_length_m": wall_length, "separation_length_m": separation,
+        "curtain_length_m": curtain,
         "height_m": height, "height_source": height_source,
         "floor_m2": floor_m2, "floor_source": floor_source, "floor_note": floor_note,
         "floor_ids": [f["element_id"] for f in floors],
@@ -722,13 +931,27 @@ def room_raw(context, room, level, number):
     }
 
 
-def select_rooms(doc, level_filter, numbers, level_cache):
-    """Placed rooms matching the filters, sorted by level and number.
+def _room_phase_id(room):
+    try:
+        parameter = room.get_Parameter(DB.BuiltInParameter.ROOM_PHASE)
+        if parameter is None:
+            return None
+        element_id = parameter.AsElementId()
+        return None if _invalid(element_id) else element_id_value(element_id)
+    except Exception:
+        return None
+
+
+def select_rooms(doc, level_filter, numbers, level_cache, phase_id=None):
+    """Placed rooms matching the filters (and of the phase, when phase_id is
+    given), sorted by level and number.
     Returns (rooms [(level, number, room)], skipped counts, numbers found)."""
     wanted_level = _key(level_filter) if level_filter else None
     wanted_numbers = set(_key(n) for n in numbers) if numbers else None
     rooms = []
     skipped = {"unplaced": 0, "not_enclosed": 0}
+    if phase_id is not None:
+        skipped["other_phase"] = 0
     found = set()
     for room in _elements(doc, "OST_Rooms"):
         try:
@@ -738,6 +961,11 @@ def select_rooms(doc, level_filter, numbers, level_cache):
             number = _parameter_text(room, DB.BuiltInParameter.ROOM_NUMBER)
             if wanted_numbers is not None and _key(number) not in wanted_numbers:
                 continue
+            if phase_id is not None:
+                room_phase = _room_phase_id(room)
+                if room_phase is not None and room_phase != phase_id:
+                    skipped["other_phase"] += 1
+                    continue
             status = room_status(room.Location is not None, room.Area)
             if status != "placed":
                 skipped[status] += 1
@@ -750,9 +978,11 @@ def select_rooms(doc, level_filter, numbers, level_cache):
     return rooms, skipped, found
 
 
-def _plumbing_records(doc, category_name, label, level_filter, level_cache):
+def _plumbing_records(doc, category_name, label, level_filter, level_cache, phase=None):
     records = []
     for instance in _elements(doc, category_name) or []:
+        if not on_phase(instance, phase):
+            continue
         level = _level_name(doc, instance.LevelId, level_cache)
         if level_filter and _key(level) != _key(level_filter):
             continue
@@ -761,18 +991,32 @@ def _plumbing_records(doc, category_name, label, level_filter, level_cache):
     return records
 
 
-def _wall_records(doc, openings, level_filter, level_cache):
-    """(records, skipped counts) of basic and stacked walls."""
+def _stacked_members(wall):
+    try:
+        return list(wall.GetStackedWallMemberIds())
+    except Exception:
+        return []
+
+
+def _wall_records(doc, openings, level_filter, level_cache, phase=None):
+    """(records, skipped counts) of basic and stacked walls. A stacked wall is
+    measured once: its members are skipped and their openings and volume go to it."""
     by_host = {}
     for record, _ in openings:
         if record["host_id"] is not None:
             by_host.setdefault(record["host_id"], []).append(record["area_m2"])
     records = []
-    skipped = {"curtain": 0, "no_length_or_height": 0}
+    skipped = {"curtain": 0, "no_length_or_height": 0, "stacked_member": 0, "not_in_phase": 0}
     for wall in DB.FilteredElementCollector(doc).OfClass(DB.Wall):
         try:
             level = _level_name(doc, wall.LevelId, level_cache)
             if level_filter and _key(level) != _key(level_filter):
+                continue
+            if getattr(wall, "IsStackedWallMember", False):
+                skipped["stacked_member"] += 1
+                continue
+            if not on_phase(wall, phase):
+                skipped["not_in_phase"] += 1
                 continue
             wall_type = doc.GetElement(wall.GetTypeId())
             if wall_type is not None and wall_type.Kind == DB.WallKind.Curtain:
@@ -783,12 +1027,18 @@ def _wall_records(doc, openings, level_filter, level_cache):
             if not length or not height:
                 skipped["no_length_or_height"] += 1
                 continue
-            volume = _double(wall, "HOST_VOLUME_COMPUTED")
+            members = _stacked_members(wall)
+            volume = stacked_volume(
+                _double(wall, "HOST_VOLUME_COMPUTED"),
+                [_double(doc.GetElement(member), "HOST_VOLUME_COMPUTED") for member in members])
+            opening_areas = list(by_host.get(element_id_value(wall.Id), []))
+            for member in members:
+                opening_areas.extend(by_host.get(element_id_value(member), []))
             records.append({
                 "type": _safe_name(wall_type), "length_m": length * FT_TO_M,
                 "height_m": height * FT_TO_M,
                 "volume_m3": volume * CUFT_TO_M3 if volume else None,
-                "opening_areas": by_host.get(element_id_value(wall.Id), []),
+                "opening_areas": opening_areas,
             })
         except Exception as e:
             logger.warning("Could not read wall: %s", e)
@@ -799,6 +1049,28 @@ def _level_filtered(records, level_filter):
     if not level_filter:
         return records
     return [r for r in records if _key(r.get("level")) == _key(level_filter)]
+
+
+def find_phase(doc, value):
+    """(phase element, error) for the phase input (name or id; None = last phase)."""
+    error = phase_ref_error(value)
+    if error:
+        return None, error
+    phases = list(doc.Phases)
+    index, error = resolve_phase(
+        [(element_id_value(phase.Id), _safe_name(phase)) for phase in phases], value)
+    if error:
+        return None, error
+    return phases[index], None
+
+
+def phase_notes(context):
+    notes = []
+    unreadable = context.unreadable_openings()
+    if unreadable:
+        notes.append(u"{} vãos sem ambiente legível (FromRoom/ToRoom falhou): fora das paredes "
+                     u"dos ambientes".format(unreadable))
+    return notes
 
 
 def register_quantity_routes(api):
@@ -813,6 +1085,7 @@ def register_quantity_routes(api):
         {
             "level": "Térreo",
             "room_numbers": ["101", "102"],
+            "phase": "Construção nova",      // name or id; default: last phase
             "rules": {"deduct_openings": "over_threshold", "deduct_openings_over_m2": 2.0, ...},
             "limit": 200
         }
@@ -833,12 +1106,18 @@ def register_quantity_routes(api):
                     not isinstance(numbers, list)
                     or not all(isinstance(n, basestring) and n.strip() for n in numbers)):
                 error = "room_numbers must be a list of room numbers (text)"
+            error = error or phase_ref_error(data.get("phase"))
             if error:
                 return routes.make_response(data={"error": error}, status=400)
+            phase, error = find_phase(doc, data.get("phase"))
+            if error:
+                return routes.make_response(data={"error": error}, status=404)
+            phase_name = _safe_name(phase)
 
-            context = TakeoffContext(doc, rules)
+            context = TakeoffContext(doc, rules, phase)
             rooms, skipped, found = select_rooms(
-                doc, data.get("level"), numbers, context.level_cache)
+                doc, data.get("level"), numbers, context.level_cache,
+                element_id_value(phase.Id))
             raws = []
             failed = []
             for level, number, room in rooms[:limit]:
@@ -850,7 +1129,9 @@ def register_quantity_routes(api):
                                    "error": str(e)})
             result = {
                 "status": "success",
-                "rules": rules_block(rules),
+                "rules": rules_block(rules, phase_name),
+                "phase": phase_name,
+                "notes": phase_notes(context),
                 "total": len(rooms),
                 "returned": len(raws),
                 "truncated": len(rooms) > limit,
@@ -880,6 +1161,7 @@ def register_quantity_routes(api):
             "groups": ["esquadrias", "pintura"],
             "level": "Térreo",
             "include_plumbing_equipment": false,
+            "phase": "Construção nova",      // name or id; default: last phase
             "rules": {...},
             "limit": 200,
             "format": "json"
@@ -899,12 +1181,21 @@ def register_quantity_routes(api):
             output = data.get("format", "json")
             output = output.lower() if isinstance(output, basestring) else output
             error = error or rules_error or groups_error or (
-                None if output in FORMATS else "format must be 'json' or 'csv'")
+                None if output in FORMATS else "format must be 'json' or 'csv'") \
+                or phase_ref_error(data.get("phase"))
             if error:
                 return routes.make_response(data={"error": error}, status=400)
+            phase, error = find_phase(doc, data.get("phase"))
+            if error:
+                return routes.make_response(data={"error": error}, status=404)
+            phase_name = _safe_name(phase)
 
             level_filter = data.get("level")
-            context = TakeoffContext(doc, rules)
+            by_room = "rodapes" in groups or "pintura" in groups
+            context = TakeoffContext(
+                doc, rules, phase, need_floors="pisos" in groups,
+                need_ceilings="forros" in groups or by_room,
+                need_openings="esquadrias" in groups or "alvenaria" in groups or by_room)
             texts = rule_texts(rules)
             lines = []
             notes = []
@@ -916,7 +1207,7 @@ def register_quantity_routes(api):
                     notes.append(u"{} esquadrias sem largura/altura legíveis".format(missing))
             if "loucas_metais" in groups:
                 records = _plumbing_records(doc, "OST_PlumbingFixtures", u"Peças sanitárias",
-                                            level_filter, context.level_cache)
+                                            level_filter, context.level_cache, phase)
                 if data.get("include_plumbing_equipment"):
                     if getattr(DB.BuiltInCategory, "OST_PlumbingEquipment", None) is None:
                         notes.append(u"categoria Equipamentos hidráulicos indisponível "
@@ -924,29 +1215,44 @@ def register_quantity_routes(api):
                     else:
                         records.extend(_plumbing_records(
                             doc, "OST_PlumbingEquipment", u"Equipamentos hidráulicos",
-                            level_filter, context.level_cache))
+                            level_filter, context.level_cache, phase))
                 lines.extend(count_lines(records, "loucas_metais", texts["loucas_metais"], rules))
             if "alvenaria" in groups:
                 records, skipped = _wall_records(doc, context.openings, level_filter,
-                                                 context.level_cache)
+                                                 context.level_cache, phase)
                 lines.extend(wall_lines(records, rules))
-                if skipped["curtain"] or skipped["no_length_or_height"]:
-                    notes.append(u"paredes ignoradas: {} cortina, {} sem comprimento/altura"
-                                 .format(skipped["curtain"], skipped["no_length_or_height"]))
+                if any(skipped.values()):
+                    notes.append(u"paredes ignoradas: {} cortina, {} sem comprimento/altura, "
+                                 u"{} subparedes de paredes empilhadas (contadas na empilhada), "
+                                 u"{} demolidas ou fora da fase"
+                                 .format(skipped["curtain"], skipped["no_length_or_height"],
+                                         skipped["stacked_member"], skipped["not_in_phase"]))
             if "pisos" in groups:
-                hosts = context.floors if rules["use_modeled_elements"] else \
-                    collect_hosts(doc, "OST_Floors", context.level_cache)
+                if rules["use_modeled_elements"]:
+                    hosts, structural = context.floors, context.structural_floors
+                else:
+                    every = collect_hosts(doc, "OST_Floors", context.level_cache, phase)
+                    hosts = [h for h in every if not h["structural"]]
+                    structural = [h for h in every if h["structural"]]
                 lines.extend(host_lines(_level_filtered(hosts, level_filter), "pisos",
-                                        u"área dos pisos modelados (HOST_AREA_COMPUTED) por tipo",
-                                        rules))
+                                        u"área dos pisos modelados (HOST_AREA_COMPUTED) por tipo; "
+                                        u"pisos estruturais (lajes) excluídos", rules))
+                structural = _level_filtered(structural, level_filter)
+                if structural:
+                    notes.append(u"{} pisos estruturais (lajes) fora de pisos: {:.2f} m²".format(
+                        len(structural), sum(h["area_m2"] for h in structural)))
             if "forros" in groups:
                 hosts = context.ceilings if rules["use_modeled_elements"] else \
-                    collect_hosts(doc, "OST_Ceilings", context.level_cache)
+                    collect_hosts(doc, "OST_Ceilings", context.level_cache, phase)
                 lines.extend(host_lines(_level_filtered(hosts, level_filter), "forros",
                                         u"área dos forros modelados (HOST_AREA_COMPUTED) por tipo",
                                         rules))
-            if "rodapes" in groups or "pintura" in groups:
-                rooms, _, _ = select_rooms(doc, level_filter, None, context.level_cache)
+            if by_room:
+                rooms, room_skipped, _ = select_rooms(doc, level_filter, None, context.level_cache,
+                                                      element_id_value(phase.Id))
+                if room_skipped.get("other_phase"):
+                    notes.append(u"{} ambientes de outras fases ignorados".format(
+                        room_skipped["other_phase"]))
                 raws = []
                 for level, number, room in rooms:
                     try:
@@ -955,10 +1261,12 @@ def register_quantity_routes(api):
                         logger.warning("Could not measure room: %s", e)
                         notes.append(u"ambiente {} não medido: {}".format(number, e))
                 lines.extend(room_total_lines(raws, rules, groups))
+                notes.extend(phase_notes(context))
 
             result = {
                 "status": "success",
-                "rules": rules_block(rules),
+                "rules": rules_block(rules, phase_name),
+                "phase": phase_name,
                 "groups": groups,
                 "format": output,
                 "total": len(lines),

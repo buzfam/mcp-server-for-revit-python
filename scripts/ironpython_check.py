@@ -467,6 +467,47 @@ def phase_helpers():
     assert ph.preview_ids(list(range(60))) == list(range(50))
 
 
+def audit_review_helpers():
+    from revit_mcp import audit
+    assert audit.purge_result([], 2) is None and audit.purge_result([], 0) == set()
+    assert audit.purge_result([long(5)], 1) == set([5])
+
+
+def sheet_check_review_helpers():
+    from revit_mcp import sheet_checks as checks
+    rule = {u"match": {u"number_prefix": u"A"}, u"allowed_scales": [long(50)]}
+    info = {"views": [{"name": u"Perspectiva", "type": "ThreeD", "scale": long(1),
+                       "perspective": True}], "has_title_block": True}
+    assert checks.evaluate_sheet(info, rule, False)[0] == []
+    assert "OST_ElevationMarks" in checks.DATUM_CATEGORIES
+
+
+def material_check_review_helpers():
+    from revit_mcp import material_checks as m
+    assert m.merge_ids([long(1), long(2)], [long(2), long(3)]) == [1, 2, 3]
+    assert m.piece_count({"solids": 2, "meshes": 1}, 2) == 5 and m.piece_count(None, 1) is None
+    assert m.mesh_only({"solids": 0, "meshes": 2}) and not m.mesh_only({"solids": 1, "meshes": 2})
+
+
+def quantity_review_helpers():
+    from revit_mcp import quantities as q
+    rules, error = q.parse_rules({u"deduct_openings": u"excess_over_threshold"})
+    assert error is None
+    assert abs(q.opening_deduction(3.5, rules) - 1.5) < 1e-9 and q.opening_deduction(1.68, rules) == 0.0
+    assert u"excede 2.00 m²" in q.rule_texts(rules)["paredes"]
+    phases = [(long(10), u"Existente"), (long(12), u"Construção nova")]
+    assert q.resolve_phase(phases, None) == (1, None)
+    assert q.resolve_phase(phases, u"construção NOVA") == (1, None)
+    assert q.resolve_phase(phases, long(10)) == (0, None)
+    assert u"Existente" in q.resolve_phase(phases, u"Futura")[1]
+    assert q.phase_ref_error(True) and q.phase_ref_error(None) is None
+    block = q.rules_block(rules, u"Construção nova")
+    assert block["phase"] == u"Construção nova" and u"demolidos excluídos" in block["criteria"]["fase"]
+    assert q.phase_status_kept("Existing") and not q.phase_status_kept("Demolished")
+    assert q.stacked_volume(None, [1.0, None, 2.0]) == 3.0
+    assert q.in_box((1.0, 1.0), (0.0, 0.0, 2.0, 2.0)) and q.room_point_z(None, 3.0) == 4.0
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -489,6 +530,10 @@ check("review fix helpers", review_fix_helpers)
 check("renumber helpers", renumber_helpers)
 check("pdf export helpers", pdf_export_helpers)
 check("phase helpers", phase_helpers)
+check("audit review helpers", audit_review_helpers)
+check("sheet check review helpers", sheet_check_review_helpers)
+check("material check review helpers", material_check_review_helpers)
+check("quantity review helpers", quantity_review_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

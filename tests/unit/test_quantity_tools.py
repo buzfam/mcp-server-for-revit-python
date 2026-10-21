@@ -15,6 +15,9 @@ BAD_RULES = [
     ({"rules": {"waste_percent": 150}}, "waste_percent"),
     ({"limit": 0}, "limit"),
     ({"limit": 1001}, "limit"),
+    ({"phase": True}, "phase"),
+    ({"phase": 0}, "phase"),
+    ({"phase": " "}, "phase"),
 ]
 
 
@@ -89,3 +92,27 @@ class TestQuantitiesByRule:
         result = await self.tool(ctx=None, **kwargs)
         assert result.startswith("Error:") and message in result
         self.mock_post.assert_not_called()
+
+
+class TestReviewFixes:
+    @pytest.fixture(autouse=True)
+    def setup(self, mock_mcp, mock_revit_get, mock_revit_post):
+        mock_revit_post.return_value = {"status": "success"}
+        register_quantity_tools(mock_mcp, mock_revit_get, mock_revit_post)
+        self.tools = mock_mcp.tools
+        self.mock_post = mock_revit_post
+
+    @pytest.mark.parametrize("name", ["room_finishes", "quantities_by_rule"])
+    async def test_phase_and_excess_mode_are_sent(self, name):
+        await self.tools[name](phase=u"Construção nova",
+                               rules={"deduct_openings": "excess_over_threshold"}, ctx=None)
+        payload = self.mock_post.call_args.args[1]
+        assert payload["phase"] == u"Construção nova"
+        assert payload["rules"] == {"deduct_openings": "excess_over_threshold"}
+
+    @pytest.mark.parametrize("name", ["room_finishes", "quantities_by_rule"])
+    async def test_phase_id_and_default_without_phase(self, name):
+        await self.tools[name](phase=12, ctx=None)
+        assert self.mock_post.call_args.args[1]["phase"] == 12
+        await self.tools[name](ctx=None)
+        assert "phase" not in self.mock_post.call_args.args[1]

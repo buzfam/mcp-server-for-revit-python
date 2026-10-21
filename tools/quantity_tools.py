@@ -3,12 +3,12 @@
 
 import math
 from mcp.server.fastmcp import Context
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from .utils import format_response
 
 MAX_LIMIT = 1000
 FORMATS = ("json", "csv")
-DEDUCT_MODES = ("over_threshold", "all", "none")
+DEDUCT_MODES = ("over_threshold", "excess_over_threshold", "all", "none")
 GROUPS = ("esquadrias", "loucas_metais", "alvenaria", "pisos", "forros", "rodapes", "pintura")
 RULE_KEYS = ("deduct_openings", "deduct_openings_over_m2", "skirting_subtract_doors",
              "wall_height_m", "use_modeled_elements", "rounding", "waste_percent")
@@ -49,6 +49,18 @@ def _rules_error(rules):
     return None
 
 
+def _phase_error(phase):
+    if phase is None:
+        return None
+    if isinstance(phase, bool):
+        return "Error: phase must be a phase name or id"
+    if isinstance(phase, int):
+        return None if phase > 0 else "Error: phase must be a positive phase id"
+    if isinstance(phase, str) and phase.strip():
+        return None
+    return "Error: phase must be a phase name or id"
+
+
 def _clean_rules(rules):
     return {key: value for key, value in rules.items() if value is not None}
 
@@ -66,6 +78,7 @@ def register_quantity_tools(mcp, revit_get, revit_post):
     async def room_finishes(
         level: Optional[str] = None,
         room_numbers: Optional[List[str]] = None,
+        phase: Optional[Union[str, int]] = None,
         rules: Optional[Dict[str, Any]] = None,
         limit: int = 200,
         ctx: Context = None,
@@ -77,15 +90,21 @@ def register_quantity_tools(mcp, revit_get, revit_post):
         length × height, minus door/window openings by rule), skirting (m,
         wall boundary minus door widths) and painting (m², net walls + ceiling).
 
-        Only placed rooms are measured; "skipped" counts unplaced and not
-        enclosed ones. Room separation lines do not count as wall. Openings
-        are the doors/windows whose FromRoom/ToRoom is the room (room phase).
+        Only placed rooms of the phase are measured; "skipped" counts unplaced,
+        not enclosed and other-phase rooms. Room separation lines and curtain
+        walls do not count as wall (curtain length reported apart). Openings
+        are the New/Existing doors/windows of the phase whose FromRoom/ToRoom
+        is the room; demolished ones are excluded. Structural floors (slabs)
+        are not finish floors.
         Never quote a number without its rule (rules.criteria).
 
         Measurement rules (all optional; the response echoes the applied rules
         and a pt-BR criterion text for each value under "rules"):
-            deduct_openings: "over_threshold" (default), "all" or "none".
-            deduct_openings_over_m2: openings with area above this are deducted
+            deduct_openings: "over_threshold" (default: openings above the
+                threshold are deducted whole), "excess_over_threshold" (only
+                the area above the threshold is deducted, SINAPI/TCPO-like),
+                "all" or "none". Confirm the criterion with the office.
+            deduct_openings_over_m2: the threshold of both threshold modes
                 (default 2.0, a common Brazilian criterion; confirm with the office).
             skirting_subtract_doors: subtract door widths from skirting (default true).
             wall_height_m: fixed wall height for every room (default: modeled
@@ -98,10 +117,11 @@ def register_quantity_tools(mcp, revit_get, revit_post):
         Args:
             level: Only rooms on this level (name as shown in Revit).
             room_numbers: Only these room numbers.
+            phase: Phase to measure, name or id (default: the last phase).
             rules: Measurement rules (see above).
             limit: Maximum number of rooms (1-1000, default 200).
         """
-        error = _limit_error(limit) or _rules_error(rules)
+        error = _limit_error(limit) or _rules_error(rules) or _phase_error(phase)
         if error:
             return error
         if room_numbers is not None and (
@@ -114,6 +134,8 @@ def register_quantity_tools(mcp, revit_get, revit_post):
             data["level"] = level
         if room_numbers:
             data["room_numbers"] = room_numbers
+        if phase is not None:
+            data["phase"] = phase
         if rules:
             data["rules"] = _clean_rules(rules)
         if ctx:
@@ -126,6 +148,7 @@ def register_quantity_tools(mcp, revit_get, revit_post):
         groups: Optional[List[str]] = None,
         level: Optional[str] = None,
         include_plumbing_equipment: bool = False,
+        phase: Optional[Union[str, int]] = None,
         rules: Optional[Dict[str, Any]] = None,
         limit: int = 200,
         format: str = "json",
@@ -143,10 +166,18 @@ def register_quantity_tools(mcp, revit_get, revit_post):
         (modeled area per type), "rodapes" (skirting total) and "pintura"
         (net walls + ceilings, from the room finishes). Default: all.
 
+        Phase: only elements New or Existing in the phase (default: last
+        phase) and rooms of that phase; demolished elements are excluded.
+        Stacked walls are measured once (members skipped); structural floors
+        (slabs) are left out of "pisos" and reported in notes.
+
         Measurement rules (all optional; the response echoes the applied rules
         and a pt-BR criterion text for each value under "rules"):
-            deduct_openings: "over_threshold" (default), "all" or "none".
-            deduct_openings_over_m2: openings with area above this are deducted
+            deduct_openings: "over_threshold" (default: openings above the
+                threshold are deducted whole), "excess_over_threshold" (only
+                the area above the threshold is deducted, SINAPI/TCPO-like),
+                "all" or "none". Confirm the criterion with the office.
+            deduct_openings_over_m2: the threshold of both threshold modes
                 (default 2.0, a common Brazilian criterion; confirm with the office).
             skirting_subtract_doors: subtract door widths from skirting (default true).
             wall_height_m: fixed wall height for every room (default: modeled
@@ -160,11 +191,12 @@ def register_quantity_tools(mcp, revit_get, revit_post):
             groups: Groups to compute (default all, see above).
             level: Only elements/rooms on this level (name as shown in Revit).
             include_plumbing_equipment: Also count plumbing equipment in loucas_metais.
+            phase: Phase to measure, name or id (default: the last phase).
             rules: Measurement rules (see above).
             limit: Maximum number of lines (1-1000, default 200).
             format: "json" (default) or "csv".
         """
-        error = _limit_error(limit) or _rules_error(rules)
+        error = _limit_error(limit) or _rules_error(rules) or _phase_error(phase)
         if error:
             return error
         if format not in FORMATS:
@@ -183,6 +215,8 @@ def register_quantity_tools(mcp, revit_get, revit_post):
             data["groups"] = groups
         if level:
             data["level"] = level
+        if phase is not None:
+            data["phase"] = phase
         if rules:
             data["rules"] = _clean_rules(rules)
         if ctx:

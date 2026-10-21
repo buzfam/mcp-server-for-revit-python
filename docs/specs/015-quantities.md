@@ -44,26 +44,46 @@ importação de orçamentos (§12.5, MCP SINAPI/planilhas) ficam para specs pró
 
 | Regra | Padrão | Valores | Efeito |
 |---|---|---|---|
-| `deduct_openings` | `"over_threshold"` | `"over_threshold"`, `"all"`, `"none"` | Quais vãos de portas/janelas saem da área de parede |
-| `deduct_openings_over_m2` | `2.0` | número ≥ 0 | Com `over_threshold`, desconta só vãos com área **acima** desse valor (critério usual no Brasil; vão de exatamente 2,00 m² não é descontado) |
+| `deduct_openings` | `"over_threshold"` | `"over_threshold"`, `"excess_over_threshold"`, `"all"`, `"none"` | Quais vãos de portas/janelas saem da área de parede, e quanto |
+| `deduct_openings_over_m2` | `2.0` | número ≥ 0 | Limiar dos dois modos com limiar. `over_threshold`: vão com área **acima** do limiar é descontado inteiro (vão de exatamente 2,00 m² não é descontado). `excess_over_threshold`: desconta só **o que excede** o limiar em cada vão (vão de 3,50 m² com limiar 2,00 desconta 1,50 m²), à moda de SINAPI/TCPO |
 | `skirting_subtract_doors` | `true` | bool | Rodapé = contorno com parede menos a largura das portas |
 | `wall_height_m` | `null` | 0 < h ≤ 20 | Altura fixa das paredes de todos os ambientes; sem ela: altura do forro modelado, senão altura do ambiente |
 | `use_modeled_elements` | `true` | bool | Usar pisos/forros modelados dentro do ambiente; `false` usa sempre a área do ambiente |
 | `rounding` | `2` | 0–4 | Casas decimais, aplicadas só no valor final (somas usam valores sem arredondar) |
 | `waste_percent` | `0` | 0–100 | Perdas: nunca alteram `quantity`; aparecem à parte em `quantity_with_waste` (não aplicadas a `un`) |
 
+O padrão continua `over_threshold`; **qual modo e qual limiar o escritório
+usa ainda precisa ser confirmado** (o `excess_over_threshold` existe para
+comparar com orçamentos que seguem SINAPI/TCPO).
+
 A resposta ecoa `rules.applied` (valores finais), `rules.criteria` (texto pt-BR
 por grandeza: `paredes`, `rodape`, `piso`, `forro`, `pintura`, `alvenaria`,
-`esquadrias`, `loucas_metais`, `arredondamento`, `perdas`, `unidades`) e
-`rules.units`.
+`esquadrias`, `loucas_metais`, `arredondamento`, `perdas`, `unidades` e `fase`),
+`rules.units` e `rules.phase` (nome da fase medida). Cada vão de
+`room_finishes` traz `deducted` e `deducted_m2`.
+
+### Fase medida (entrada `phase`, comum às duas tools)
+
+`phase` (nome ou id; padrão: a **última** fase do projeto) define o que entra:
+
+- **Ambientes:** só os de `ROOM_PHASE` igual à fase (ambiente sem fase legível
+  entra); os de outras fases contam em `skipped.other_phase`.
+- **Demais elementos** (portas/janelas, paredes, pisos, forros, peças
+  sanitárias): só os com `Element.GetPhaseStatus(fase)` = `New` ou `Existing`.
+  Demolidos, temporários e futuros ficam de fora; se o status não puder ser
+  lido, o elemento entra.
+- `rules.criteria.fase`: "ambientes da fase X; demais elementos novos e
+  existentes na fase X; demolidos excluídos". Fase inexistente → 404 com a
+  lista de fases; formato inválido → 400.
 
 ### Como cada grandeza é medida
 
 - **Contorno do ambiente:** `Room.GetBoundarySegments` com
   `SpatialElementBoundaryLocation.Finish` (face de acabamento). Trechos que são
   linhas separadoras de ambiente (`CurveElement`) **não** contam como parede,
-  nem para pintura nem para rodapé (aparecem em `notes`). Pilares delimitadores
-  contam como parede.
+  nem para pintura nem para rodapé (aparecem em `notes`). Trechos de **parede
+  cortina** (`WallType.Kind == Curtain`) também não: vão para
+  `walls.curtain_length_m`, com nota. Pilares delimitadores contam como parede.
 - **Altura:** `rules.wall_height_m` → altura do forro modelado de maior área no
   ambiente (`CEILING_HEIGHTABOVELEVEL_PARAM`, mesmo nível do ambiente) →
   `Room.UnboundedHeight`. `height.source` diz qual: `rule:wall_height_m`,
@@ -72,13 +92,19 @@ por grandeza: `paredes`, `rodape`, `piso`, `forro`, `pintura`, `alvenaria`,
   bruta − vãos descontados pela regra (nunca negativa).
 - **Vãos do ambiente:** portas e janelas cujo `FromRoom`/`ToRoom` **na fase do
   ambiente** (`ROOM_PHASE`) é o ambiente. Uma porta entre dois ambientes conta
-  nos dois (cada face é pintada). Tamanho: `DOOR_WIDTH/DOOR_HEIGHT` ou
+  nos dois (cada face é pintada). Vão cujo `FromRoom`/`ToRoom` dá erro conta em
+  `notes` ("N vãos sem ambiente legível"). Tamanho: `DOOR_WIDTH/DOOR_HEIGHT` ou
   `WINDOW_WIDTH/WINDOW_HEIGHT` → `FAMILY_WIDTH_PARAM/FAMILY_HEIGHT_PARAM` →
   `FAMILY_ROUGH_WIDTH_PARAM/FAMILY_ROUGH_HEIGHT_PARAM`, cada um na instância e
   depois no tipo; `size_source` diz de onde veio. Vão sem tamanho legível nunca
   é descontado.
 - **Piso/forro:** soma dos pisos/forros do mesmo nível cujo centro (caixa
-  envolvente) está no ambiente (`Room.IsPointInRoom`). Se não há elemento, ou a
+  envolvente) está no ambiente (`Room.IsPointInRoom`, testado 1 pé acima do
+  ponto de localização do ambiente — coordenadas internas —, ou acima de
+  `Level.ProjectElevation` se o ambiente não tiver ponto; centros fora da caixa
+  envolvente do ambiente nem são testados). **Pisos estruturais**
+  (`FLOOR_PARAM_IS_STRUCTURAL = 1`, lajes) não são piso de acabamento: ficam
+  fora da busca por ambiente e do grupo `pisos` (contados em `notes`). Se não há elemento, ou a
   soma passa de 105% da área do ambiente + 0,5 m² (laje que atravessa vários
   ambientes), usa a área do ambiente e explica em `note`. `source`:
   `modeled_elements` ou `room_area`.
@@ -88,7 +114,10 @@ por grandeza: `paredes`, `rodape`, `piso`, `forro`, `pintura`, `alvenaria`,
   `WALL_USER_HEIGHT_PARAM`; área de uma face; vãos = portas/janelas hospedadas
   na parede, pela mesma regra; volume = `HOST_VOLUME_COMPUTED` (o Revit já
   desconta todas as aberturas). Paredes cortina e paredes no local ficam de fora
-  (`notes`).
+  (`notes`). **Parede empilhada** é medida uma vez: as subparedes
+  (`IsStackedWallMember`) são puladas (contadas em `notes`), os vãos hospedados
+  nelas vão para a empilhada e, se a empilhada não tiver volume, soma-se o das
+  subparedes (`GetStackedWallMemberIds`).
 - **Pisos/forros por tipo:** `HOST_AREA_COMPUTED`.
 
 ## Parâmetros da tool
@@ -98,6 +127,7 @@ por grandeza: `paredes`, `rodape`, `piso`, `forro`, `pintura`, `alvenaria`,
 |---|---|---|---|
 | `level` | str | todos | Só ambientes desse nível |
 | `room_numbers` | list[str] | todos | Só esses números de ambiente |
+| `phase` | str \| int | última fase | Fase medida (nome ou id) |
 | `rules` | dict | padrões acima | Regras de medição |
 | `limit` | int | 200 | Máximo de ambientes (1–1000) |
 
@@ -107,13 +137,15 @@ por grandeza: `paredes`, `rodape`, `piso`, `forro`, `pintura`, `alvenaria`,
 | `groups` | list[str] | todos | `esquadrias`, `loucas_metais`, `alvenaria`, `pisos`, `forros`, `rodapes`, `pintura` |
 | `level` | str | todos | Só elementos/ambientes desse nível |
 | `include_plumbing_equipment` | bool | False | Contar também Equipamentos hidráulicos em `loucas_metais` |
+| `phase` | str \| int | última fase | Fase medida (nome ou id) |
 | `rules` | dict | padrões acima | Regras de medição |
 | `limit` | int | 200 | Máximo de linhas (1–1000) |
 | `format` | str | `"json"` | `"json"` ou `"csv"` |
 
 ## Requisição para a rota
 ```json
-{"level": "Térreo", "room_numbers": ["101"], "rules": {"deduct_openings_over_m2": 2.0}, "limit": 200}
+{"level": "Térreo", "room_numbers": ["101"], "phase": "Construção nova",
+ "rules": {"deduct_openings_over_m2": 2.0}, "limit": 200}
 ```
 ```json
 {"groups": ["esquadrias", "pintura"], "include_plumbing_equipment": false,
@@ -177,7 +209,10 @@ unit, quantity, quantity_with_waste, rule`). Erros de entrada → 400 (`rules`,
 - Só ambientes posicionados e fechados são medidos; os outros entram em `skipped`.
 - Altura desconhecida → paredes e pintura `null` no ambiente, com nota pedindo
   `rules.wall_height_m`; no total, `rooms_without_height`.
-- Fase: a do ambiente (`ROOM_PHASE`); sem ela, a última fase do projeto.
+- Fase: a de `phase` (padrão: a última); vãos pelo `FromRoom`/`ToRoom` na fase
+  do ambiente (que é a medida). Demolidos nunca entram.
+- `quantities_by_rule` só lê o que os grupos pedidos usam (sem `pisos`, não
+  coleta pisos; sem `forros`/`rodapes`/`pintura`, não coleta forros).
 - `room_finishes` totaliza só os ambientes devolvidos (`totals_of_returned`);
   `quantities_by_rule` (rodapes/pintura) mede todos os ambientes do filtro.
 - Respostas sem `json.dumps` de texto acentuado no IronPython; textos via
@@ -189,7 +224,11 @@ unit, quantity, quantity_with_waste, rule`). Erros de entrada → 400 (`rules`,
 `FamilyInstance.get_FromRoom/get_ToRoom(Phase)`, `FamilyInstance.Host`,
 `BuiltInParameter` de largura/altura de portas/janelas, `HOST_AREA_COMPUTED`,
 `HOST_VOLUME_COMPUTED`, `CURVE_ELEM_LENGTH`, `WALL_USER_HEIGHT_PARAM`,
-`CEILING_HEIGHTABOVELEVEL_PARAM`, `WallType.Kind`, `Level.ProjectElevation`.
+`CEILING_HEIGHTABOVELEVEL_PARAM`, `WallType.Kind`, `Level.ProjectElevation`,
+`Room.Location.Point`, `Element.get_BoundingBox`, `Document.Phases`,
+`ROOM_PHASE`, `Element.GetPhaseStatus` (`ElementOnPhaseStatus`),
+`Wall.IsStackedWallMember`, `Wall.GetStackedWallMemberIds`,
+`FLOOR_PARAM_IS_STRUCTURAL`.
 `OST_PlumbingEquipment` é lida por `getattr` (se não existir na versão, vira nota).
 
 ## Testes
@@ -198,7 +237,10 @@ unit, quantity, quantity_with_waste, rule`). Erros de entrada → 400 (`rules`,
 - Unitário (lógica, `tests/unit/test_quantity_route_logic.py`): regras padrão e
   validação, desconto de vãos (limiar, todos, nenhum, ruído de ponto flutuante),
   rodapé, altura, área modelada × ambiente, arredondamento, perdas, agrupamento,
-  linhas por grupo, `FromRoom/ToRoom` e contorno com linhas separadoras.
+  linhas por grupo, `FromRoom/ToRoom` e contorno com linhas separadoras; modo
+  `excess_over_threshold`, resolução e filtro de fase, paredes cortina no
+  contorno, pré-filtro por caixa envolvente, pisos estruturais, paredes
+  empilhadas, vãos sem ambiente legível e coletas puladas por grupo.
 - Integração (Windows + Revit): pendente.
 
 ## Validação manual no Revit
@@ -208,6 +250,14 @@ unit, quantity, quantity_with_waste, rule`). Erros de entrada → 400 (`rules`,
 - [ ] Laje única para vários ambientes: piso cai para `room_area` com nota.
 - [ ] Linha separadora de ambiente: fora de parede e rodapé, com nota.
 - [ ] Porta entre dois ambientes aparece nos dois; fase do ambiente respeitada.
+- [ ] Projeto de reforma (Existente / Construção nova): sem `phase`, mede a última fase; ambientes da fase existente vão para `skipped.other_phase`; paredes/portas demolidas não entram; `rules.phase` e `rules.criteria.fase` corretos.
+- [ ] `phase` por nome em português e por id; fase inexistente → 404 com a lista.
+- [ ] Parede empilhada: aparece uma vez em `alvenaria` (subparedes em `notes`), volume igual à soma das subparedes, vãos das subparedes descontados.
+- [ ] Ambiente com trecho de parede cortina: fora de paredes/pintura/rodapé, `walls.curtain_length_m` e nota.
+- [ ] Laje estrutural sob vários ambientes + piso de acabamento: só o acabamento conta; laje em `notes` de `pisos`.
+- [ ] Modelo com base point deslocado / níveis com "Base de elevação" = ponto de levantamento: pisos e forros continuam achados (ponto de teste em coordenadas internas).
+- [ ] `excess_over_threshold`: janela 2,00×1,75 (3,50 m²) desconta 1,50 m² (`deducted_m2`).
+- [ ] Tempo de `quantities_by_rule` num projeto grande do escritório (antes e depois do pré-filtro).
 - [ ] `size_source` coerente nas famílias de porta/janela do escritório (Revit 2024 pt-BR).
 - [ ] `quantities_by_rule` com `format="csv"` abre no Excel com acentos.
 - [ ] Conferir os padrões da tabela de regras com o escritório (ficha `quantitativos-regras-medicao`).

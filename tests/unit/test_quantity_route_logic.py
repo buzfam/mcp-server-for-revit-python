@@ -349,7 +349,346 @@ def test_room_boundary_separates_room_separation_lines(q):
     doc = SimpleNamespace(GetElement=lambda i: {5: wall, 6: line}[i.Value])
     room = SimpleNamespace(GetBoundarySegments=lambda options: [
         [Segment(10.0, eid(5)), Segment(5.0, eid(6)), Segment(2.0, INVALID)]])
-    perimeter, wall_length, separation = q.room_boundary(doc, room, None)
+    perimeter, wall_length, separation, curtain = q.room_boundary(doc, room, None)
     assert perimeter == pytest.approx(17 * 0.3048)
     assert wall_length == pytest.approx(10 * 0.3048)
     assert separation == pytest.approx(7 * 0.3048)
+    assert curtain == 0.0
+
+
+
+# ---- review fixes ----
+
+def test_excess_over_threshold_mode(q):
+    r = rules(q, deduct_openings="excess_over_threshold")
+    assert q.opening_deduction(1.68, r) == 0.0 and not q.opening_deducted(1.68, r)
+    assert q.opening_deduction(2.0000000001, r) == 0.0
+    assert q.opening_deduction(3.5, r) == pytest.approx(1.5) and q.opening_deducted(3.5, r)
+    walls = q.net_wall_area(30.0, [1.68, 3.5, None], r)
+    assert walls["net"] == pytest.approx(28.5) and walls["deducted"] == pytest.approx(1.5)
+    assert (walls["deducted_count"], walls["kept_count"]) == (1, 2)
+    # the other modes deduct whole openings, as before
+    assert q.opening_deduction(3.5, rules(q)) == 3.5
+    assert q.opening_deduction(1.0, rules(q, deduct_openings="all")) == 1.0
+    assert q.opening_deduction(9.0, rules(q, deduct_openings="none")) == 0.0
+    assert u"excede 2.00 m²" in q.rule_texts(r)["paredes"]
+
+
+def test_room_output_reports_deducted_area_and_curtain(q):
+    raw = raw_room(curtain_length_m=3.0)
+    raw["openings"][0]["area_m2"] = 3.5
+    out = q.room_output(raw, rules(q, deduct_openings="excess_over_threshold"))
+    assert out["openings"][0]["deducted_m2"] == 1.5
+    assert out["walls"]["curtain_length_m"] == 3.0
+    assert any(u"paredes cortina" in note for note in out["notes"])
+
+
+def test_phase_helpers(q):
+    phases = [(10, u"Existente"), (11, u"Demolição"), (12, u"Construção nova")]
+    assert q.resolve_phase(phases, None) == (2, None)
+    assert q.resolve_phase(phases, u"existente") == (0, None)
+    assert q.resolve_phase(phases, 11) == (1, None)
+    assert q.resolve_phase(phases, u"12") == (2, None)
+    index, error = q.resolve_phase(phases, u"Futura")
+    assert index is None and u"Construção nova" in error
+    assert q.resolve_phase([], None)[1]
+    assert q.phase_ref_error(None) is None and q.phase_ref_error(u"Nova") is None
+    assert q.phase_ref_error(3) is None
+    for bad in (True, 0, -1, u"  ", [1]):
+        assert q.phase_ref_error(bad)
+    assert q.phase_status_kept("New") and q.phase_status_kept("Existing")
+    for status in ("Demolished", "Temporary", "Future", "Past", "None"):
+        assert not q.phase_status_kept(status)
+
+
+def test_rules_block_echoes_phase(q):
+    block = q.rules_block(rules(q), u"Construção nova")
+    assert block["phase"] == u"Construção nova"
+    assert block["criteria"]["fase"] == (
+        u"ambientes da fase Construção nova; demais elementos novos e existentes na fase "
+        u"Construção nova; demolidos excluídos")
+    assert "phase" not in q.rules_block(rules(q)) and "fase" not in q.rule_texts(rules(q))
+
+
+def test_on_phase_keeps_new_and_existing(q):
+    phase = SimpleNamespace(Id=eid(12))
+
+    class Element:
+        def __init__(self, status):
+            self.status = status
+
+        def GetPhaseStatus(self, phase_id):
+            if self.status is None:
+                raise RuntimeError("no phase")
+            return self.status
+
+    assert q.on_phase(Element("New"), phase) and q.on_phase(Element("Existing"), phase)
+    assert not q.on_phase(Element("Demolished"), phase)
+    assert not q.on_phase(Element("Future"), phase)
+    assert q.on_phase(Element(None), phase)          # unreadable: kept
+    assert q.on_phase(Element("Demolished"), None)   # no phase: no filter
+
+
+def test_small_geometry_helpers(q):
+    assert q.stacked_volume(5.0, [1.0, 2.0]) == 5.0
+    assert q.stacked_volume(None, [1.0, None, 2.0]) == 3.0
+    assert q.stacked_volume(None, [None]) is None
+    assert q.in_box((1.0, 1.0), (0.0, 0.0, 2.0, 2.0)) and not q.in_box((3.0, 1.0), (0, 0, 2, 2))
+    assert q.in_box((99.0, 99.0), None)
+    assert q.room_point_z(10.0, 50.0) == 11.0       # room location point first
+    assert q.room_point_z(None, 50.0) == 51.0       # then the level ProjectElevation
+    assert q.room_point_z(None, None) == 1.0
+
+
+def test_openings_by_room_counts_unreadable(q):
+    class Broken:
+        def get_FromRoom(self, phase):
+            raise RuntimeError("x")
+
+        def get_ToRoom(self, phase):
+            raise RuntimeError("x")
+
+    class Half(Broken):
+        def get_ToRoom(self, phase):
+            return FakeRoom(1)
+
+    stats = {}
+    mapping = q.openings_by_room([({"element_id": 1}, Broken()), ({"element_id": 2}, Half()),
+                                  ({"element_id": 3}, FakeOpening(None, None))],
+                                 phase=object(), stats=stats)
+    assert stats == {"unreadable": 1} and [o["element_id"] for o in mapping[1]] == [2]
+
+
+def test_room_boundary_separates_curtain_walls(q, monkeypatch):
+    class Wall:
+        def __init__(self, type_id):
+            self.type_id = type_id
+
+        def GetTypeId(self):
+            return self.type_id
+
+    class Segment:
+        def __init__(self, length_ft, element_id):
+            self.ElementId, self.length = element_id, length_ft
+
+        def GetCurve(self):
+            return SimpleNamespace(Length=self.length)
+
+    monkeypatch.setattr(q.DB, "Wall", Wall, raising=False)
+    monkeypatch.setattr(q.DB, "WallKind", SimpleNamespace(Curtain="curtain", Basic="basic"),
+                        raising=False)
+    elements = {5: Wall(eid(50)), 7: Wall(eid(70)), 50: SimpleNamespace(Kind="basic"),
+                70: SimpleNamespace(Kind="curtain")}
+    doc = SimpleNamespace(GetElement=lambda i: elements[i.Value])
+    room = SimpleNamespace(GetBoundarySegments=lambda options: [
+        [Segment(10.0, eid(5)), Segment(4.0, eid(7))]])
+    perimeter, wall, separation, curtain = q.room_boundary(doc, room, None)
+    assert wall == pytest.approx(10 * 0.3048) and curtain == pytest.approx(4 * 0.3048)
+    assert perimeter == pytest.approx(14 * 0.3048) and separation == 0.0
+
+
+def test_hosts_in_room_prefilters_by_room_box(q, monkeypatch):
+    monkeypatch.setattr(q.DB, "XYZ", lambda x, y, z: (x, y, z), raising=False)
+    calls = []
+
+    def inside(point):
+        calls.append(point)
+        return point[0] < 5
+
+    room = SimpleNamespace(IsPointInRoom=inside)
+    hosts = [{"level_key": 1, "centre": (1.0, 1.0)}, {"level_key": 1, "centre": (50.0, 1.0)},
+             {"level_key": 2, "centre": (1.0, 1.0)}]
+    found = q._hosts_in_room(room, hosts, 1, 3.0, (0.0, 0.0, 10.0, 10.0))
+    assert found == [hosts[0]] and calls == [(1.0, 1.0, 3.0)]
+    # without the box (old call) every host on the level is tested
+    calls[:] = []
+    assert q._hosts_in_room(room, hosts, 1, 3.0) == [hosts[0]] and len(calls) == 2
+
+
+class FakeParam:
+    def __init__(self, value):
+        self.value = value
+        self.HasValue = True
+        self.StorageType = "Double"
+
+    def AsDouble(self):
+        return self.value
+
+    def AsInteger(self):
+        return self.value
+
+    def AsElementId(self):
+        return self.value
+
+
+class FakeHost:
+    def __init__(self, element_id, area_ft2, structural=0, status="New", level=1):
+        self.Id, self.LevelId = eid(element_id), eid(level)
+        self.params = {"HOST_AREA_COMPUTED": FakeParam(area_ft2),
+                       "FLOOR_PARAM_IS_STRUCTURAL": FakeParam(structural)}
+        self.status = status
+
+    def get_Parameter(self, builtin):
+        return self.params.get(builtin)
+
+    def get_BoundingBox(self, view):
+        return SimpleNamespace(Min=SimpleNamespace(X=0.0, Y=0.0), Max=SimpleNamespace(X=2.0, Y=4.0))
+
+    def GetTypeId(self):
+        return eid(900)
+
+    def GetPhaseStatus(self, phase_id):
+        return self.status
+
+
+@pytest.fixture
+def revit_names(q, monkeypatch):
+    names = SimpleNamespace(**{n: n for n in (
+        "HOST_AREA_COMPUTED", "FLOOR_PARAM_IS_STRUCTURAL", "CEILING_HEIGHTABOVELEVEL_PARAM",
+        "ROOM_NUMBER", "ROOM_PHASE", "CURVE_ELEM_LENGTH", "WALL_USER_HEIGHT_PARAM",
+        "HOST_VOLUME_COMPUTED")})
+    monkeypatch.setattr(q.DB, "BuiltInParameter", names, raising=False)
+    monkeypatch.setattr(q.DB, "StorageType", SimpleNamespace(Double="Double"), raising=False)
+    monkeypatch.setattr(q, "_safe_name", lambda e: getattr(e, "name", None))
+    monkeypatch.setattr(q, "_level_name", lambda doc, level_id, cache: u"Térreo")
+    return names
+
+
+def test_collect_hosts_flags_structural_and_filters_phase(q, revit_names, monkeypatch):
+    hosts = [FakeHost(1, 100.0), FakeHost(2, 200.0, structural=1),
+             FakeHost(3, 50.0, status="Demolished")]
+    monkeypatch.setattr(q, "_elements", lambda doc, name: hosts)
+    doc = SimpleNamespace(GetElement=lambda i: None)
+    found = q.collect_hosts(doc, "OST_Floors", {}, SimpleNamespace(Id=eid(12)))
+    assert [h["element_id"] for h in found] == [1, 2]
+    assert [h["structural"] for h in found] == [False, True]
+    assert found[0]["centre"] == (1.0, 2.0)
+    # old call (no phase): nothing filtered, as finish_elements expects
+    assert len(q.collect_hosts(doc, "OST_Floors", {})) == 3
+
+
+class FakeRoomElement:
+    def __init__(self, element_id, number, phase_id):
+        self.Id, self.LevelId, self.number = eid(element_id), eid(1), number
+        self.Location, self.Area = object(), 100.0
+        self.params = {"ROOM_PHASE": FakeParam(eid(phase_id) if phase_id else INVALID)}
+
+    def get_Parameter(self, builtin):
+        return self.params.get(builtin)
+
+
+def test_select_rooms_keeps_the_phase(q, revit_names, monkeypatch):
+    rooms = [FakeRoomElement(1, "101", 12), FakeRoomElement(2, "102", 10),
+             FakeRoomElement(3, "103", None)]
+    monkeypatch.setattr(q, "_elements", lambda doc, name: rooms)
+    monkeypatch.setattr(q, "_parameter_text", lambda element, builtin: element.number)
+    selected, skipped, _ = q.select_rooms(None, None, None, {}, 12)
+    assert [number for _, number, _ in selected] == ["101", "103"]
+    assert skipped == {"unplaced": 0, "not_enclosed": 0, "other_phase": 1}
+    selected, skipped, _ = q.select_rooms(None, None, None, {})
+    assert len(selected) == 3 and "other_phase" not in skipped
+
+
+class FakeWall:
+    def __init__(self, element_id, length_ft, height_ft, volume_ft3=None, members=(),
+                 member=False, status="New"):
+        self.Id, self.LevelId = eid(element_id), eid(1)
+        self.IsStackedWallMember = member
+        self.members = members
+        self.status = status
+        self.params = {"CURVE_ELEM_LENGTH": FakeParam(length_ft),
+                       "WALL_USER_HEIGHT_PARAM": FakeParam(height_ft)}
+        if volume_ft3 is not None:
+            self.params["HOST_VOLUME_COMPUTED"] = FakeParam(volume_ft3)
+
+    def get_Parameter(self, builtin):
+        return self.params.get(builtin)
+
+    def GetTypeId(self):
+        return eid(800)
+
+    def GetStackedWallMemberIds(self):
+        return [m.Id for m in self.members]
+
+    def GetPhaseStatus(self, phase_id):
+        return self.status
+
+
+def test_wall_records_stacked_once_and_phase(q, revit_names, monkeypatch):
+    top = FakeWall(21, 10.0, 5.0, volume_ft3=10.0, member=True)
+    bottom = FakeWall(22, 10.0, 5.0, volume_ft3=20.0, member=True)
+    stacked = FakeWall(20, 10.0, 10.0, members=(top, bottom))
+    basic = FakeWall(30, 10.0, 10.0, volume_ft3=50.0)
+    demolished = FakeWall(40, 10.0, 10.0, volume_ft3=50.0, status="Demolished")
+    walls = [stacked, top, bottom, basic, demolished]
+    by_id = dict((w.Id.Value, w) for w in walls)
+    by_id[800] = SimpleNamespace(Kind="basic", name=u"Bloco 14")
+
+    class Collector:
+        def __init__(self, doc):
+            pass
+
+        def OfClass(self, cls):
+            return walls
+
+    monkeypatch.setattr(q.DB, "FilteredElementCollector", Collector, raising=False)
+    monkeypatch.setattr(q.DB, "Wall", FakeWall, raising=False)
+    monkeypatch.setattr(q.DB, "WallKind", SimpleNamespace(Curtain="curtain"), raising=False)
+    doc = SimpleNamespace(GetElement=lambda i: by_id.get(i.Value))
+    openings = [({"host_id": 22, "area_m2": 3.0}, None), ({"host_id": 30, "area_m2": 1.0}, None)]
+    records, skipped = q._wall_records(doc, openings, None, {}, SimpleNamespace(Id=eid(12)))
+    assert len(records) == 2
+    assert skipped == {"curtain": 0, "no_length_or_height": 0, "stacked_member": 2,
+                       "not_in_phase": 1}
+    first = records[0]
+    assert first["volume_m3"] == pytest.approx(30.0 * 0.0283168, rel=1e-4)  # members' sum
+    assert first["opening_areas"] == [3.0]                                  # member's opening
+    assert records[1]["opening_areas"] == [1.0]
+
+
+def test_find_phase_and_route_phase_errors(q, monkeypatch):
+    monkeypatch.setattr(q, "_safe_name", lambda e: getattr(e, "name", None))
+    phases = [SimpleNamespace(Id=eid(10), name=u"Existente"),
+              SimpleNamespace(Id=eid(12), name=u"Construção nova")]
+    doc = SimpleNamespace(Phases=phases)
+    assert q.find_phase(doc, None) == (phases[1], None)
+    assert q.find_phase(doc, 10) == (phases[0], None)
+    assert q.find_phase(doc, u"Futura")[1] and q.find_phase(doc, True)[1]
+
+    monkeypatch.setattr(q, "authorize_request", lambda request, action=None: None)
+    handlers = {}
+
+    class Api:
+        def route(self, path, methods):
+            def decorator(function):
+                handlers[path] = function
+                return function
+            return decorator
+
+    q.register_quantity_routes(Api())
+    for path in ("/room_finishes/", "/quantities_by_rule/"):
+        handler = handlers[path]
+        assert handler(doc, SimpleNamespace(data={"phase": True}))["status"] == 400
+        response = handler(doc, SimpleNamespace(data={"phase": u"Futura"}))
+        assert response["status"] == 404 and u"Existente" in response["data"]["error"]
+
+
+def test_takeoff_context_skips_unneeded_collectors(q, monkeypatch):
+    calls = []
+    monkeypatch.setattr(q.DB, "SpatialElementBoundaryOptions", lambda: SimpleNamespace(),
+                        raising=False)
+    monkeypatch.setattr(q.DB, "SpatialElementBoundaryLocation", SimpleNamespace(Finish=1),
+                        raising=False)
+    monkeypatch.setattr(q, "collect_openings", lambda doc, cache, phase=None: calls.append("o") or [])
+    monkeypatch.setattr(q, "collect_hosts", lambda doc, name, cache, phase=None: calls.append(
+        name) or [{"structural": name == "OST_Floors", "level_key": 1}])
+    doc = SimpleNamespace(Phases=[])
+    context = q.TakeoffContext(doc, rules(q), None, need_floors=False, need_ceilings=True,
+                               need_openings=False)
+    assert calls == ["OST_Ceilings"] and context.floors == [] and context.openings == []
+    calls[:] = []
+    context = q.TakeoffContext(doc, rules(q))
+    assert calls == ["o", "OST_Floors", "OST_Ceilings"]
+    assert context.floors == [] and len(context.structural_floors) == 1
+    assert context.hosts_on_level("ceilings", 1) == context.ceilings
+    assert context.hosts_on_level("ceilings", 2) == []

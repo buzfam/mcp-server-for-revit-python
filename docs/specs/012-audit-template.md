@@ -166,8 +166,18 @@ A mesma tabela volta na resposta em `checklist` (só com as seções presentes).
 - Elevação em metros (pés × 0,3048, 3 casas).
 - Resposta compacta: limite por lista, categorias de parâmetro limitadas a 20.
 - Modelos grandes: coletores por classe, uma passada só para contar
-  instâncias; nenhuma geometria é lida. Timeout do wrapper: 120 s; restrinja
-  `sections` se precisar.
+  instâncias; nenhuma geometria é lida. Timeout do wrapper: 300 s. A rota tem
+  orçamento de 240 s: passado esse tempo, as seções que faltam não são
+  montadas e aparecem em `section_errors` como `"skipped: time budget"`, com
+  `time_budget.skipped_sections` (chame de novo só com elas).
+- `GetUnusedElements` com conjunto vazio de categorias: se devolver **zero** ids
+  enquanto a contagem de instâncias acha tipos de família sem instância, a
+  resposta é tratada como não confiável e o método de contagem é usado
+  (`unused_source = "instance_count"` e `unused_source_note`).
+- A contagem de instâncias por tipo (`_type_counts`) continua numa passada só
+  sobre todos os elementos: restringir categorias deixaria de fora etiquetas
+  (`IndependentTag`), cotas e textos cujos tipos o relatório também conta.
+- Corpo vazio ou ausente → valores padrão (como `{}`), não erro 500.
 - Regex de `naming` precisa casar com o nome inteiro (`re.match` + `\Z`, com
   `re.UNICODE`); nome vazio conta como violação.
 
@@ -193,13 +203,19 @@ A mesma tabela volta na resposta em `checklist` (só com as seções presentes).
   validação, regex de nome inteiro, `summarize`/`unused_first`, checklist de 19
   itens, uso de modelos e filtros, vistas e tabelas fora de prancha, famílias
   por contagem de instâncias e pela API de limpeza, prévia de limpeza, erro
-  isolado por seção, 503/400 na rota.
+  isolado por seção, 503/400 na rota; recuo para contagem quando
+  `GetUnusedElements` devolve vazio, orçamento de tempo e corpo vazio.
 - `tests/unit/test_publication_security.py` cobre a autorização antes de tudo.
 
 ## Validação manual no Revit
 - [ ] Abrir o template `.rte` do escritório e rodar `audit_template()` sem
-      argumentos: responde em menos de 120 s e sem `section_errors`.
+      argumentos: responde em menos de 240 s e sem `section_errors`.
 - [ ] `unused_source` é `"revit_purge"` no Revit 2024 (confirma `GetUnusedElements`).
+- [ ] `GetUnusedElements` com conjunto vazio devolve ids no Revit 2024 (sem
+      `unused_source_note`); se vier a nota, conferir se o conjunto vazio é lido
+      como "todas as categorias".
+- [ ] Projeto grande: se passar de 240 s, `time_budget.skipped_sections` lista o
+      que faltou e a segunda chamada só com essas seções completa.
 - [ ] A contagem de `purge_preview` bate com a janela *Limpar itens não utilizados*.
 - [ ] `browser_organization.items[0].folders` mostra os parâmetros de agrupamento
       reais (em português) da organização atual.

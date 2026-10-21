@@ -75,7 +75,9 @@ def register_audit_tools(mcp, revit_get, revit_post):
 
         "unused" comes from Revit's Purge Unused list when available (Revit
         2024+), otherwise from placed instance counts; each section states its
-        unused_rule. Large models can take a minute: restrict sections.
+        unused_rule. Large models can take minutes: after about 4 minutes the
+        remaining sections are skipped (listed in section_errors and
+        time_budget.skipped_sections); call again with only those sections.
 
         Args:
             sections: Sections to include (default: all). Valid names are listed above.
@@ -103,5 +105,5 @@ def register_audit_tools(mcp, revit_get, revit_post):
             payload["naming"] = naming
         if ctx:
             await ctx.info("Auditing the Revit template...")
-        response = await revit_post("/audit_template/", payload, ctx, timeout=120.0)
+        response = await revit_post("/audit_template/", payload, ctx, timeout=300.0)
         return format_response(response)

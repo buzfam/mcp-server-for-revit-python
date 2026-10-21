@@ -108,14 +108,23 @@ fora da faixa → 400; vista não encontrada → 404; vista modelo → 400.
 - Elementos sem tipo (ex.: DirectShape) contam como um tipo cada.
 - Problemas ordenados: primeiro `error`, depois `review`; cortados em `limit`
   com `truncated: true`.
-- Peças de geometria = sólidos com volume (descendo em `GeometryInstance`) +
-  subcomponentes compartilhados (`GetSubComponentIds`). A regra 4 nunca pede
-  mais materiais do que peças: um objeto de uma peça só com um material passa.
+- Peças de geometria = sólidos com volume + malhas (`Mesh`), descendo em
+  `GeometryInstance`, + subcomponentes compartilhados (`GetSubComponentIds`,
+  recursivo até 3 níveis). A regra 4 nunca pede mais materiais do que peças:
+  um objeto de uma peça só com um material passa.
+- **Famílias aninhadas compartilhadas**: os materiais (geometria e pintura) dos
+  subcomponentes entram no registro do tipo pai, porque chegam ao renderizador
+  junto com ele. Sem isso, uma poltrona com pés aninhados compartilhados
+  contava os pés como peças mas não os materiais deles.
+- **Geometria só de malhas** (DWG/SKP/OBJ importado, sem sólidos do Revit): o
+  tipo recebe `note` em cada problema e conta em `summary.mesh_only_types`;
+  os materiais podem vir da importação e precisam ser conferidos no render.
 
 ## Limitações
 - Materiais de famílias aninhadas e das faces da geometria interna da família
   **são** cobertos por `Element.GetMaterialIds(False)`. Famílias aninhadas
-  **compartilhadas** são elementos próprios e aparecem como tipos próprios.
+  **compartilhadas** são elementos próprios: aparecem como tipos próprios
+  **e** seus materiais somam no tipo pai.
 - Uma família com parte das faces em `<Por categoria>` e parte com material
   aparece só com os materiais explícitos: a parte "por categoria" não é
   detectada.
@@ -128,7 +137,7 @@ fora da faixa → 400; vista não encontrada → 404; vista modelo → 400.
 `FilteredElementCollector(doc[, view.Id]).OfCategoryId().WhereElementIsNotElementType()`,
 `Element.GetMaterialIds(bool)`, `Element.GetTypeId()`, `Category.GetCategory`,
 `Category.Material`, `Element.get_Geometry(Options)`, `Solid.Volume`,
-`GeometryInstance.GetInstanceGeometry()`, `FamilyInstance.GetSubComponentIds()`,
+`GeometryInstance.GetInstanceGeometry()`, `Mesh`, `FamilyInstance.GetSubComponentIds()`,
 `BuiltInParameter.SYMBOL_FAMILY_NAME_PARAM` / `SYMBOL_NAME_PARAM` /
 `ALL_MODEL_FAMILY_NAME`. Nada específico de versão (Revit 2024+).
 
@@ -137,7 +146,8 @@ fora da faixa → 400; vista não encontrada → 404; vista modelo → 400.
   payload sem chaves `None`, validação sem chamar o Revit.
 - Unitário (lógica da rota, Revit falso): `tests/unit/test_material_check_route_logic.py`
   — acentos, regex padrão, agrupamento de nomes, cada regra, ordem e corte,
-  filtro por vista e erros 400/404/503.
+  filtro por vista e erros 400/404/503; materiais de subcomponentes aninhados
+  no pai, malhas como peças e nota de geometria só de malhas.
 - Integração: não há (precisa de Windows + Revit).
 
 ## Validação manual no Revit
@@ -148,3 +158,5 @@ fora da faixa → 400; vista não encontrada → 404; vista modelo → 400.
 - [ ] Faces pintadas aparecem em `painted`.
 - [ ] Nomes com acento (`PÉ`, `AÇO`) passam no padrão.
 - [ ] Tempo de resposta aceitável num modelo grande (contagem de sólidos).
+- [ ] Família com aninhada compartilhada (ex.: pés): materiais da aninhada aparecem no pai e `single_material` não dispara à toa.
+- [ ] Família com SKP/DWG importado: `note` de geometria só de malhas e `mesh_only_types`.

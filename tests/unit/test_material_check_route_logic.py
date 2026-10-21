@@ -31,6 +31,10 @@ class Solid:
         self.Volume = volume
 
 
+class Mesh:
+    pass
+
+
 class GeometryInstance:
     def __init__(self, items):
         self.items = items
@@ -89,9 +93,11 @@ class FakeType:
 
 
 class FakeElement:
-    def __init__(self, element_id, category_id, type_id, materials=(), paint=(), geometry=()):
+    def __init__(self, element_id, category_id, type_id, materials=(), paint=(), geometry=(),
+                 subs=()):
         self.Id, self.category_id, self.type_id = eid(element_id), category_id, eid(type_id)
         self.materials, self.paint, self.geometry = materials, paint, geometry
+        self.subs = subs
         self.name = u"inst"
 
     def GetTypeId(self):
@@ -104,7 +110,7 @@ class FakeElement:
         return [GeometryInstance(list(self.geometry))]
 
     def GetSubComponentIds(self):
-        return []
+        return [eid(i) for i in self.subs]
 
     def get_Parameter(self, builtin):
         return None
@@ -131,7 +137,8 @@ def revit_modules(monkeypatch):
             SYMBOL_FAMILY_NAME_PARAM="SYMBOL_FAMILY_NAME_PARAM",
             SYMBOL_NAME_PARAM="SYMBOL_NAME_PARAM", ALL_MODEL_FAMILY_NAME="ALL_MODEL_FAMILY_NAME"),
         FilteredElementCollector=lambda doc, view_id=None: Collector(doc, view_id),
-        Options=lambda: object(), Solid=Solid, GeometryInstance=GeometryInstance, View=View)
+        Options=lambda: object(), Solid=Solid, Mesh=Mesh, GeometryInstance=GeometryInstance,
+        View=View)
     pyrevit = SimpleNamespace(DB=DB, routes=SimpleNamespace(make_response=lambda **kw: kw),
                               forms=SimpleNamespace(alert=lambda *a, **k: True))
     monkeypatch.setitem(sys.modules, "pyrevit", pyrevit)
@@ -250,7 +257,7 @@ def test_check_records_summary_and_order(revit_modules):
     summary, problems = m.check_records(records, names, regex, 2, 2)
     assert summary == {"name_pattern": 2, "duplicate_names": 1, "generic_shared": 1,
                        "single_material": 1, "category_material_only": 0, "no_material": 0,
-                       "painted_types": 0}
+                       "painted_types": 0, "mesh_only_types": 0}
     assert [p["severity"] for p in problems] == ["error"] * 3 + ["review"] * 2
     assert problems[0]["rule"] == "name_pattern"
     shared = [p for p in problems if p["rule"] == "generic_shared"][0]
@@ -309,6 +316,9 @@ class FakeDoc:
 
     def GetElement(self, element_id):
         value = element_id.Value
+        nested = getattr(self, "nested", {})
+        if value in nested:
+            return nested[value]
         if value in self.types:
             return self.types[value]
         if value in self.materials:
@@ -377,3 +387,47 @@ def test_route_errors(route, body, status):
 def test_route_without_document(revit_modules, route):
     handler_doc = None
     assert route({}, d=handler_doc)["status"] == 503
+
+
+# ---- review fixes ----
+
+def test_piece_helpers(revit_modules):
+    m = revit_modules
+    assert m.merge_ids([1, 2], [2, 3]) == [1, 2, 3] and m.merge_ids(None, [4]) == [4]
+    assert m.piece_count({"solids": 2, "meshes": 1}, 2) == 5
+    assert m.piece_count(None, 3) is None
+    assert m.mesh_only({"solids": 0, "meshes": 3}) and not m.mesh_only({"solids": 1, "meshes": 3})
+    assert not m.mesh_only(None) and not m.mesh_only({"solids": 0, "meshes": 0})
+
+
+def test_type_problems_note_for_mesh_only(revit_modules):
+    problems = revit_modules.type_problems(_record(material_ids=[1], mesh_only=True), 2, NAMES)
+    assert problems[0]["rule"] == "single_material" and "meshes" in problems[0]["note"]
+
+
+def test_route_counts_nested_materials_and_meshes(revit_modules, route):
+    categories = revit_modules.categories
+    furniture = categories["OST_Furniture"].Id.Value
+    doc = FakeDoc(categories)
+    # Chair with one solid in its own geometry; the leg is a nested shared family
+    # with its own material; the cushion is a mesh (imported geometry).
+    leg = FakeElement(81, furniture, 100, materials=[2], subs=[82])
+    foot = FakeElement(82, furniture, 100, materials=[1])
+    doc.nested = {81: leg, 82: foot}
+    doc.elements = [FakeElement(10, furniture, 100, materials=[1],
+                                geometry=[Solid(1), Mesh()], subs=[81])]
+    data = route({}, d=doc)["data"]
+    assert data["materials_checked"] == 2           # parent 1 + nested 2 (and 1 again)
+    assert data["summary"]["single_material"] == 0
+    assert data["summary"]["mesh_only_types"] == 0
+
+
+def test_route_flags_mesh_only_geometry(revit_modules, route):
+    categories = revit_modules.categories
+    furniture = categories["OST_Furniture"].Id.Value
+    doc = FakeDoc(categories)
+    doc.elements = [FakeElement(10, furniture, 100, materials=[1], geometry=[Mesh(), Mesh()])]
+    data = route({}, d=doc)["data"]
+    assert data["summary"]["mesh_only_types"] == 1
+    problem = data["problems"][0]
+    assert problem["rule"] == "single_material" and "meshes" in problem["note"]

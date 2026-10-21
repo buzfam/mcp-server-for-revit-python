@@ -8,12 +8,13 @@ unused items and naming violations, without changing the model.
 """
 
 from pyrevit import routes, DB
-import json
 import logging
 import re
+import time
 from .security import authorize_request
 from .utils import normalize_string, element_id_value, element_id_from_int
 from .health import NON_PLACEABLE_VIEW_TYPES
+from .exports import _parse_body
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,9 @@ FT_TO_M = 0.3048
 SOLID_PATTERN = u"<solid>"
 MULTI_CATEGORY = u"<multicategory>"
 MANUAL = u"conferir a olho"
+# Seconds after which the remaining sections are skipped (the MCP wrapper waits 300 s).
+TIME_BUDGET_S = 240.0
+SKIPPED_BY_BUDGET = u"skipped: time budget"
 
 SECTIONS = (
     "browser_organization", "levels_grids", "phases", "view_templates", "filters",
@@ -333,16 +337,43 @@ def _empty_id_set():
     return HashSet[DB.ElementId]()
 
 
+def purge_result(ids, unused_symbols_by_count):
+    """Ids from GetUnusedElements, or None to fall back to instance counts.
+
+    An empty answer while instance counting finds unused family types means the
+    call did not work as expected (e.g. the empty category set was not read as
+    "all categories"); then the instance-count method is used instead."""
+    if ids is None:
+        return None
+    ids = set(ids)
+    if not ids and unused_symbols_by_count:
+        return None
+    return ids
+
+
+def _unused_symbol_count(ctx):
+    counts = _type_counts(ctx)
+    return sum(1 for symbol in _symbols(ctx) if counts.get(element_id_value(symbol.Id), 0) == 0)
+
+
 def _purgeable(ctx):
     """Ids Revit's Purge Unused would list (Document.GetUnusedElements, Revit
-    2024+), or None when the API is not available."""
+    2024+), or None when the API is not available or answers nothing although
+    instance counts find unused types."""
     def build():
         try:
             ids = ctx.doc.GetUnusedElements(_empty_id_set())
         except Exception as e:
             logger.info("GetUnusedElements not available: %s", e)
             return None
-        return set(element_id_value(element_id) for element_id in ids)
+        values = [element_id_value(element_id) for element_id in ids]
+        if values:
+            return set(values)
+        result = purge_result(values, _unused_symbol_count(ctx))
+        if result is None:
+            ctx.cache["purge_fallback"] = True
+            logger.info("GetUnusedElements returned nothing; using instance counts")
+        return result
     return ctx.get("purgeable", build)
 
 
@@ -1010,7 +1041,11 @@ SECTION_BUILDERS = {
 }
 
 
-def build_audit(doc, options):
+def build_audit(doc, options, budget_s=TIME_BUDGET_S, clock=None):
+    """Sections in order; once budget_s seconds have passed, the remaining
+    sections are listed in section_errors as skipped instead of built."""
+    clock = clock or time.time
+    started = clock()
     ctx = AuditContext(doc)
     limit = options["limit"]
     path = u""
@@ -1024,12 +1059,17 @@ def build_audit(doc, options):
               "limit": limit, "sections": {}}
     errors = {}
     for name in options["sections"]:
+        if clock() - started > budget_s:
+            errors[name] = SKIPPED_BY_BUDGET
+            continue
         try:
             report["sections"][name] = SECTION_BUILDERS[name](ctx, limit)
         except Exception as e:
             logger.warning("Audit section %s failed: %s", name, e)
             errors[name] = normalize_string(e)
-    if options["naming"]:
+    if options["naming"] and clock() - started > budget_s:
+        errors["naming"] = SKIPPED_BY_BUDGET
+    elif options["naming"]:
         try:
             report["sections"]["naming"] = section_naming(ctx, options["naming"], limit)
         except Exception as e:
@@ -1038,9 +1078,18 @@ def build_audit(doc, options):
     if "purgeable" in ctx.cache:
         report["unused_source"] = ("revit_purge" if ctx.cache["purgeable"] is not None
                                    else "instance_count")
+        if ctx.cache.get("purge_fallback"):
+            report["unused_source_note"] = (
+                "GetUnusedElements returned no ids although some family types have no "
+                "placed instance: used the instance-count method")
     report["checklist"] = checklist(options["sections"], bool(options["naming"]))
     if errors:
         report["section_errors"] = errors
+        skipped = [name for name in errors if errors[name] == SKIPPED_BY_BUDGET]
+        if skipped:
+            report["time_budget"] = {
+                "seconds": budget_s, "skipped_sections": sorted(skipped),
+                "hint": "call again with only the skipped sections"}
     return report
 
 
@@ -1066,8 +1115,7 @@ def register_audit_routes(api):
             if not doc:
                 return routes.make_response(
                     data={"error": "No active Revit document"}, status=503)
-            data = json.loads(request.data) if isinstance(request.data, str) else request.data
-            options, error = parse_request(data)
+            options, error = parse_request(_parse_body(request))
             if error:
                 return routes.make_response(data={"error": error}, status=400)
             return routes.make_response(data=build_audit(doc, options))

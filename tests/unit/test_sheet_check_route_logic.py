@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 MODULES = ("revit_mcp.utils", "revit_mcp.security", "revit_mcp.sheets", "revit_mcp.health",
-           "revit_mcp.parameters", "revit_mcp.sheet_checks")
+           "revit_mcp.parameters", "revit_mcp.exports", "revit_mcp.sheet_checks")
 
 
 class Eid(int):
@@ -129,7 +129,10 @@ class Collector:
         return self._keep(lambda e: e.view_independent)
 
     def GetElementCount(self):
-        return len(self.items)
+        raise AssertionError("empty check must not count every element")
+
+    def FirstElementId(self):
+        return self.items[0].Id if self.items else INVALID
 
     def __iter__(self):
         return iter(list(self.items))
@@ -384,7 +387,8 @@ def test_params_fall_back_to_project_information(checks, doc):
     rule = {"match": {"number_prefix": "A-101"}, "title_block_params": ["Cliente", "Ausente"]}
     sheet = by_number(checks.check_sheets(doc, options(checks, checklists=[rule])))["A-101"]
     assert [p["detail"] for p in sheet["problems"]] == [
-        u"parâmetro 'Ausente' não encontrado na folha, no carimbo nem nas informações do projeto"]
+        u"parâmetro 'Ausente' não encontrado na folha, no carimbo (instância ou tipo) nem nas "
+        u"informações do projeto"]
 
 
 def test_sheet_filter_limit_and_only_problems(checks, doc):
@@ -451,3 +455,88 @@ def test_route_bad_payload_is_400(route, doc):
 def test_route_without_document_is_503(route):
     handler, _ = route
     assert handler(None, SimpleNamespace(data={}))["status"] == 503
+
+
+# ---- review fixes ----
+
+class TitleBlockWithType(TitleBlock):
+    def __init__(self, doc, sheet, type_params):
+        super().__init__(doc, sheet)
+        self.block_type = Element(doc, "A1", params=type_params)
+        self.block_type.is_type = True
+
+    def GetTypeId(self):
+        return self.block_type.Id
+
+
+def test_title_block_params_read_from_the_type(checks):
+    doc = Doc()
+    sheet = ViewSheet(doc, "A-1", "Planta")
+    TitleBlockWithType(doc, sheet, {"Escritório": Param(u"CVArq")})
+    rule = {"match": {"number_prefix": "A-"}, "title_block_params": [u"Escritório"]}
+    report = checks.check_sheets(doc, options(checks, checklists=[rule], generic=False))
+    assert report["sheets"][0]["problems"] == []
+
+
+def test_perspective_3d_views_skip_the_scale_check(checks):
+    doc = Doc()
+    sheet = ViewSheet(doc, "A-1", "Perspectivas")
+    TitleBlock(doc, sheet)
+    camera = View(doc, "Perspectiva sala", "ThreeD", scale=1)
+    camera.IsPerspective = True
+    axo = View(doc, "Isométrica", "ThreeD", scale=1)
+    axo.IsPerspective = False
+    for view in (camera, axo):
+        Wall(doc, view)
+        Viewport(doc, sheet, view)
+    rule = {"match": {"number_prefix": "A-"}, "allowed_scales": [50]}
+    report = checks.check_sheets(doc, options(checks, checklists=[rule]))
+    details = [p["detail"] for p in report["sheets"][0]["problems"]]
+    assert details == [u"vista 'Isométrica' em 1:1 (permitidas: 1:50)"]
+
+
+def test_evaluate_sheet_ignores_scale_of_perspective(checks):
+    rule = {"match": {"number_prefix": "A"}, "allowed_scales": [50]}
+    info = {"views": [{"name": "P", "type": "ThreeD", "scale": 1, "perspective": True}],
+            "has_title_block": True}
+    assert checks.evaluate_sheet(info, rule, False)[0] == []
+
+
+def test_empty_checker_caches_and_respects_budget(checks, doc):
+    calls = []
+    original = checks._is_empty
+
+    def counting(d, view, datum_filter):
+        calls.append(view.Id)
+        return original(d, view, datum_filter)
+
+    checks._is_empty = counting
+    try:
+        ticks = iter([0.0, 1.0, 2.0, 100.0])
+        checker = checks.EmptyChecker(doc, None, budget_s=60.0, clock=lambda: next(ticks))
+        assert checker.check(doc.plan) is False
+        assert checker.check(doc.plan) is False          # cached: no clock, no collector
+        assert checker.check(doc.upper) is True
+        assert checker.check(doc.section) is False
+        assert checker.check(doc.cuts) is None and checker.skipped == 1
+        assert calls == [doc.plan.Id, doc.upper.Id, doc.section.Id]
+    finally:
+        checks._is_empty = original
+
+
+def test_summary_counts_skipped_empty_checks(checks, doc, monkeypatch):
+    monkeypatch.setattr(checks.EmptyChecker.__init__, "__defaults__", (-1.0, None))
+    report = checks.check_sheets(doc, options(checks))
+    assert report["summary"]["empty_check_skipped"] >= 1
+    assert all(p["check"] != "empty_viewport" for s in report["sheets"] for p in s["problems"])
+
+
+def test_datum_categories_include_elevation_markers(checks):
+    assert "OST_ElevationMarks" in checks.DATUM_CATEGORIES and "OST_Elev" in checks.DATUM_CATEGORIES
+
+
+@pytest.mark.parametrize("body", [None, "", b""])
+def test_route_empty_body_uses_defaults(route, doc, body):
+    handler, calls = route
+    response = handler(doc, SimpleNamespace(data=body))
+    assert calls == [None] and response["data"]["status"] == "success"
