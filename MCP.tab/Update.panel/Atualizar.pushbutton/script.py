@@ -10,7 +10,8 @@ extension_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname
 if extension_root not in sys.path:
     sys.path.insert(0, extension_root)
 from revit_mcp import remote_server as server
-from revit_mcp.self_update import commit_lines, result_message, short_hash
+from revit_mcp.self_update import (commit_lines, installed_commit, result_message,
+                                   server_is_stale, short_hash)
 
 TITLE = "Atualizar Revit MCP"
 
@@ -50,8 +51,16 @@ def main():
         forms.alert(u"Não foi possível verificar atualizações.", sub_msg=str(error), title=TITLE)
         return
     if not pending:
-        forms.alert(u"Já está na versão mais recente ({}).".format(short_hash(old_sha)),
-                    title=TITLE)
+        message = u"Já está na versão mais recente ({}).".format(short_hash(old_sha))
+        if server.is_running() and server_is_stale(server.read_state(),
+                                                   installed_commit(extension_root)):
+            # Updated earlier (e.g. pyRevit > Extensions) while the server kept
+            # running the previous code: restart it so both sides match.
+            _, ready, detail = restart_server()
+            message += (u"\nO servidor remoto estava numa versão anterior e foi reiniciado."
+                        if ready else u"\nO servidor remoto foi reiniciado, mas ainda está "
+                        u"iniciando ({}).".format(detail))
+        forms.alert(message, title=TITLE)
         return
 
     changes = commit_lines(new_commit_messages(repo_info))

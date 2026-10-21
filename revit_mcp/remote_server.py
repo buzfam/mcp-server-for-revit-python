@@ -166,7 +166,8 @@ def start(port=DEFAULT_PORT, uv_path=None, wait_sec=90):
         stream.write("\n--- start {} ---\n".format(time.strftime("%Y-%m-%d %H:%M:%S")))
     process = _hidden_process(
         "cmd.exe", cmd_arguments(uv_path, port, log_path()), extension_root())
-    write_state({"pid": process.Id, "port": int(port),
+    from .self_update import installed_commit
+    write_state({"pid": process.Id, "port": int(port), "commit": installed_commit(extension_root()),
                  "started": time.strftime("%Y-%m-%d %H:%M:%S")})
     deadline = time.time() + wait_sec
     while time.time() < deadline:

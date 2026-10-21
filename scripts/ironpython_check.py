@@ -165,6 +165,9 @@ def self_update_helpers():
     from revit_mcp import self_update
     assert self_update.commit_lines([u"feat: \u00e1\nbody"]) == u"\u2022 feat: \u00e1"
     assert "1234567" in self_update.result_message("1234567890", "abcdefabc", True, True, "")
+    commit = self_update.installed_commit(ROOT)
+    assert commit is None or len(commit) == 40, commit
+    assert self_update.server_is_stale({"pid": 1}, "abc")
 
 
 def utils_unicode():

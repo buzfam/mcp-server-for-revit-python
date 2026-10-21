@@ -33,6 +33,8 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 - Botão **MCP > Update > Atualizar**: confere se há versão nova no git, mostra
   os commits, atualiza a extensão, reinicia o servidor remoto (se estiver
   ligado) e recarrega o pyRevit. Sem terminal e sem passar por pyRevit > Extensions.
+  O servidor remoto grava o commit com que foi iniciado; se a extensão já estiver
+  atualizada mas o servidor rodar uma versão anterior, o Atualizar o reinicia.
 
 ### Alterado
 - **Connect e Disconnect viraram um botão só**, que mostra o estado atual:
