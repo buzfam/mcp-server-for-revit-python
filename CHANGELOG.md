@@ -7,6 +7,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- `bulk_set_parameters` aceita o nome interno do parâmetro (`builtin` do
+  `get_element_parameters`, ex.: `ALL_MODEL_INSTANCE_COMMENTS`), que vale em
+  qualquer idioma do Revit; antes só o nome exibido ("Comentários" no Revit em português).
 - `get_revit_view` não achava vistas com acento ("Nível 1"): o `unquote` do
   IronPython 2 lia o UTF-8 como Latin-1. Novo `repair_utf8` em `revit_mcp/utils.py`.
 - `color_splash`, `clear_colors` e `list_category_parameters` agora aceitam a

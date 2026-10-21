@@ -74,6 +74,10 @@ class FakeElement:
     def GetParameters(self, name):
         return self.params.get(name, [])
 
+    def get_Parameter(self, builtin):
+        found = self.params.get(builtin, [])
+        return found[0] if found else None
+
     def GetTypeId(self):
         return self.type_id if self.type_id is not None else "invalid"
 
@@ -97,7 +101,9 @@ def revit_modules(monkeypatch):
     DB = SimpleNamespace(
         StorageType=StorageType, Transaction=Transaction,
         TransactionStatus=SimpleNamespace(Committed="Committed"),
-        ElementId=lambda value: value)
+        ElementId=lambda value: value,
+        BuiltInParameter=SimpleNamespace(INVALID="INVALID",
+                                         ALL_MODEL_INSTANCE_COMMENTS="bip:comments"))
     DB.ElementId.InvalidElementId = "invalid"
     pyrevit = SimpleNamespace(DB=DB, routes=SimpleNamespace(make_response=lambda **kw: kw),
                               forms=SimpleNamespace(alert=lambda *a, **k: True))
@@ -293,3 +299,15 @@ def test_find_category_prefers_exact_localized_name(revit_modules):
     assert utils.find_category(doc, "Walls") is walls
     assert utils.find_category(doc, "Portas") is doors
     assert utils.find_category(doc, "Windows") is None
+
+
+def test_parameter_by_builtin_name_works_in_any_language(revit_modules):
+    parameters, _ = revit_modules
+    doc = doc_with(**{u"Coment\u00e1rios": [], "bip:comments": [FakeParameter(StorageType.String, "")]})
+    result = parameters.apply_changes(
+        doc, [{"element_id": 1, "parameter": "ALL_MODEL_INSTANCE_COMMENTS", "value": "x"}],
+        use_type=False, commit=False)
+    assert result["status"] == "dry_run", result
+    missing = parameters.apply_changes(
+        doc, [{"element_id": 1, "parameter": "NOT_A_BUILTIN", "value": "x"}], use_type=False, commit=False)
+    assert missing["status"] == "error"

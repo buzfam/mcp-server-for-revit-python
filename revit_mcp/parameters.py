@@ -55,6 +55,16 @@ def _shown(parameter):
     return normalize_string(value) if value is not None else None
 
 
+def _builtin_parameter(name):
+    """BuiltInParameter for an API name like ALL_MODEL_INSTANCE_COMMENTS, else None."""
+    if not isinstance(name, basestring) or not name or name.upper() != name or " " in name:
+        return None
+    builtin = getattr(DB.BuiltInParameter, str(name), None)
+    if builtin is None or builtin == getattr(DB.BuiltInParameter, "INVALID", None):
+        return None
+    return builtin
+
+
 def _resolve(doc, change, use_type):
     """Find the parameter to change. Returns (parameter, error)."""
     element = doc.GetElement(element_id_from_int(int(change["element_id"])))
@@ -68,6 +78,14 @@ def _resolve(doc, change, use_type):
 
     name = change["parameter"]
     matches = list(element.GetParameters(name))
+    if not matches:
+        # Names follow the Revit language ("Comentários"); the BuiltInParameter
+        # name reported by get_element_parameters ("ALL_MODEL_INSTANCE_COMMENTS")
+        # works in any language.
+        builtin = _builtin_parameter(name)
+        parameter = element.get_Parameter(builtin) if builtin is not None else None
+        if parameter is not None:
+            matches = [parameter]
     if not matches:
         return None, "Parameter not found on the {}".format("type" if use_type else "element")
     if len(matches) > 1:

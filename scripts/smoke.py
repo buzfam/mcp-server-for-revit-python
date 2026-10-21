@@ -214,7 +214,8 @@ async def run(args, report):
             await call(session, report, "get_element_parameters", {}, timeout=args.timeout,
                        label="get_element_parameters (current selection)")
             # Dry run only: Revit validates inside a transaction that is rolled back.
-            changes = [{"element_id": i, "parameter": "Comments", "value": "smoke test"} for i in ids]
+            changes = [{"element_id": i, "parameter": "ALL_MODEL_INSTANCE_COMMENTS",
+                        "value": "smoke test"} for i in ids]
             status, text = await call(session, report, "bulk_set_parameters",
                                       {"changes": changes, "dry_run": True},
                                       timeout=args.timeout, label="bulk_set_parameters (dry run)")

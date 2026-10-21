@@ -41,6 +41,11 @@ def register_parameter_tools(mcp, revit_get, revit_post):
         asks for approval in Revit once for the whole batch and is a single
         undo step.
 
+        "parameter" is the name shown in Revit, which follows the Revit language
+        (e.g. "Comentários" in Portuguese), or the "builtin" value reported by
+        get_element_parameters (e.g. "ALL_MODEL_INSTANCE_COMMENTS"), which works
+        in any language. Prefer "builtin" when it is not null.
+
         If any change is invalid or rejected, nothing is applied and "errors"
         lists the index, element and reason of each problem.
 
