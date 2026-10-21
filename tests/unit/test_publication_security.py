@@ -139,6 +139,19 @@ def test_route_authorizes_twice_with_one_body_token(route_security, fake_pairing
     assert request.data == {"dry_run": False}
 
 
+def test_review_preview_handles_accents_and_nesting(route_security, fake_pairing):
+    security, _, alert = route_security
+    data = {"dry_run": False, "changes": [{"element_id": 2745, "parameter": u"Coment\u00e1rios",
+                                           "value": u'diz "oi"\nfim'}], "empty": [], "none": None}
+    preview = security.preview_text(data)
+    assert u"Coment\u00e1rios" in preview
+    assert json.loads(preview) == data  # still valid JSON for the reviewer
+    request = SimpleNamespace(data=pairing.authorization_body(data), headers={})
+    alert.return_value = True
+    assert security.authorize_request(request, "Set element parameters") is None
+    assert u"Coment\u00e1rios" in alert.call_args.kwargs["sub_msg"]
+
+
 def test_route_rejects_wrong_or_missing_body_token(route_security, fake_pairing):
     security, _, alert = route_security
     request = SimpleNamespace(data={pairing.AUTH_FIELD: "wrong"}, headers={})

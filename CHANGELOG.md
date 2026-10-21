@@ -7,6 +7,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- **Escrita com acento dava 400 antes do diálogo de aprovação**: o diálogo
+  montava a prévia com `json.dumps`, que falha no IronPython 2 com texto como
+  "Comentários". A prévia agora usa um formatador próprio (`preview_text`).
 - **Texto com acento chegava corrompido ao Revit** ("Comentários" virava
   "ComentÃ¡rios"): o httpx manda o JSON em UTF-8 puro e o pyRevit Routes no
   IronPython 2 o lê como Latin-1. A ponte agora envia JSON só ASCII (`\u00e1`).

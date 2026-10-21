@@ -157,6 +157,14 @@ def body_token_pairing():
         assert security._pop_body_token(request) == token
         assert not pairing.validate_request({}, u"b" * 64)
         assert not pairing.validate_request({u"Origin": u"null"}, token)
+        data = {u"changes": [{u"element_id": 2745, u"parameter": u"Coment\u00e1rios"}]}
+        assert u"Coment\u00e1rios" in security.preview_text(data)
+        assert json.loads(security.preview_text(data)) == data
+        try:
+            json.dumps(data, indent=2, ensure_ascii=True)
+            print("info  json.dumps with accents works on this IronPython")
+        except Exception as error:
+            print("info  json.dumps with accents fails here: {!r}".format(error))
     finally:
         pairing.get_token = original
 
