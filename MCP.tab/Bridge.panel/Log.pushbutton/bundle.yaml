@@ -1,0 +1,2 @@
+title: Log
+tooltip: "Ver os erros recentes das requisições do Revit MCP (o mesmo que o agente recebe), sem abrir janelas de erro do pyRevit."
