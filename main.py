@@ -235,6 +235,9 @@ def main(argv=None):
         return
 
     if args.remote:
+        # Remote clients must not read files on this PC through the CSV import.
+        from tools.csv_import_tools import set_remote_mode
+        set_remote_mode(True)
         try:
             get_remote_token()
         except RemoteAccessError as error:
