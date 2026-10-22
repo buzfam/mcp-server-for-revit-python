@@ -37,6 +37,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **`docs/roteiro-de-testes.md`**: todos os testes pendentes no Revit (preparação,
+  segurança, botões do ribbon e as tools 001–020), cada um com o pedido ao agente e
+  o resultado esperado, a ordem do teste mínimo e as decisões a confirmar com o escritório.
 - **Painel MCP > Conferir, sem IA** (proposta B1): **Checar pranchas** (lê
   `%APPDATA%\RevitMCPPython\checklists_pranchas.json`, criado no primeiro uso a
   partir de `config/checklists_pranchas.exemplo.json`, então o **Atualizar** não

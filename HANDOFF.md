@@ -3,7 +3,7 @@
 Documento de passagem de bastão entre sessões (pessoas ou agentes). Atualize
 ao fim de cada sessão de trabalho: o que mudou, o que falta, o que está travado.
 
-_Última atualização: 2026-10-20_
+_Última atualização: 2026-10-22_
 
 ## Estado atual
 
@@ -69,7 +69,10 @@ _Última atualização: 2026-10-20_
 
 ## Próximos passos
 
-1. **Próximo teste no PC (roteiro combinado em 2026-10-21; o usuário avisa quando for testar).**
+1. **Próximo teste no PC: seguir `docs/roteiro-de-testes.md`** (2026-10-22): ~250 itens com
+   o pedido ao agente e o resultado esperado de cada um, a ordem do teste mínimo da
+   primeira sessão, os riscos e as decisões a confirmar com o escritório. O resumo
+   abaixo continua valendo como visão geral (o usuário avisa quando for testar).
    Antes: **MCP > Update > Atualizar**. Abrir um projeto com famílias de porta e
    janela e um carimbo carregados (o modelo vazio da homologação não tinha nenhum).
    Rodar o smoke primeiro (`scripts/smoke.py`). Depois, em ordem:

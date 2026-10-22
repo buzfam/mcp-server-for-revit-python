@@ -45,7 +45,8 @@ Se `get_revit_status` falhar, o resto é pulado: resolva primeiro (pareamento,
 pyRevit Routes ligado em *pyRevit > Settings > Routes*, Revit aberto com modelo).
 
 ## 4. Testes manuais (o smoke não cobre escrita nem a interface)
-Siga os checklists de cada spec e marque o que passou:
+O roteiro completo, com o resultado esperado de cada teste, está em
+[`roteiro-de-testes.md`](roteiro-de-testes.md). Os checklists de cada spec continuam valendo:
 - Tools de leitura novas: [001](specs/001-get-selected-elements.md), [002](specs/002-get-element-parameters.md)
 - Modo remoto e botão **Remoto**: [006](specs/006-network-access.md)
 - Escrita pelo agente remoto: peça ao agente um `color_splash` numa vista e
