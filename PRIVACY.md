@@ -33,12 +33,15 @@ It is intended for adult professional/design workflows, not children.
 
 ## Consent and revocation
 
-The Connect ribbon button explains model access, client/AI disclosure and Python
-execution before creating a pairing secret. Pairing persists across Revit restarts
+In this fork the extension pairs the Windows user automatically the first time it
+loads (decision of 2026-10-22); the Connect ribbon button explains model access,
+client/AI disclosure and Python execution when pairing again after a Disconnect.
+Pairing persists across Revit restarts
 and is shared by instances running as the same Windows user. Model modifications
 and Python execution require separate request review in Revit. Local discovery
 and launch are permitted by pairing; client confirmation settings still apply.
-Disconnect removes the secret and denies subsequent requests. A request already
+Disconnect removes the secret, denies subsequent requests and stops the automatic
+pairing until the user connects again. A request already
 running may finish; Disconnect does not undo changes or recall client responses.
 
 ## Storage, retention and deletion

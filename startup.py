@@ -61,3 +61,11 @@ def register_routes():
 
 # Register all routes when the extension loads
 register_routes()
+
+# Pair this Windows user automatically, unless the user chose Disconnect.
+try:
+    from revit_mcp.pairing import auto_pair
+    if auto_pair():
+        logger.info("Revit MCP paired automatically for this Windows user")
+except Exception as e:
+    logger.error("Automatic pairing failed: %s", e)

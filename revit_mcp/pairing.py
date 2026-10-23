@@ -21,6 +21,11 @@ def pairing_path():
     return os.path.join(root, "RevitMCPPython", "pairing.dpapi")
 
 
+def opt_out_path():
+    """Marker left by Disconnect so that automatic pairing respects it."""
+    return os.path.join(os.path.dirname(pairing_path()), "pairing.disabled")
+
+
 def _dpapi(data, protect):
     if sys.platform == "cli":
         import clr
@@ -77,6 +82,8 @@ def enable_pairing():
     # No plaintext token is written to disk.
     with open(path, "wb") as stream:
         stream.write(encrypted)
+    if os.path.isfile(opt_out_path()):
+        os.remove(opt_out_path())
 
 
 def disable_pairing():
@@ -84,6 +91,11 @@ def disable_pairing():
     path = pairing_path()
     if os.path.isfile(path):
         os.remove(path)
+    directory = os.path.dirname(path)
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+    with open(opt_out_path(), "wb") as stream:
+        stream.write(b"disconnected by the user\n")
 
 
 def get_token():
@@ -96,6 +108,18 @@ def get_token():
     # IOError is not an OSError on IronPython 2 (a missing file raised past this).
     except (IOError, OSError, ValueError, PairingError):
         raise PairingError("Use Revit's MCP > Bridge button (it shows Disconnected) to consent and pair this Windows user.")
+
+
+def auto_pair():
+    """Pair this Windows user when the extension loads (decided 2026-10-22).
+
+    Does nothing when already paired or when the user chose Disconnect.
+    Returns True when it created a new pairing.
+    """
+    if is_paired() or os.path.isfile(opt_out_path()):
+        return False
+    enable_pairing()
+    return True
 
 
 def is_paired():

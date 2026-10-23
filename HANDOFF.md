@@ -174,6 +174,8 @@ Documento completo: `buzfam/cvarq-skills` → `docs/propostas/2026-10-21-mcps-pl
 | 2026-10-20 | Gerenciar token e servidor remoto pelo ribbon (botão Remoto) | O usuário instala via pyRevit e não terá terminal no PC |
 | 2026-10-20 | Servidor remoto continua rodando se o Revit fechar | Simplicidade; parar é explícito pelo botão |
 | 2026-10-21 | Botões sem IA (painel Conferir) ficam neste repo, não no `pyrevit-cvarq-plugins` | Reaproveitam o código das rotas (`revit_mcp/`); mover exigiria duplicar ou empacotar `revit_mcp`. Reavaliar se o plugin irmão precisar deles sem o MCP instalado |
+| 2026-10-22 | Pareamento automático ao carregar a extensão; Desconectar fica valendo até clicar de novo | Pedido do usuário: não ter que parear. O segredo continua no DPAPI do usuário; escrita e Python seguem pedindo aprovação |
+| 2026-10-22 | Token remoto fixo: só muda por *Gerar novo token* ou *Revogar* | Pedido do usuário; já era o comportamento do código |
 | 2026-10-21 | `export_sheets_pdf` usa o exportador nativo do Revit (`Document.Export` + `PDFExportOptions`, Revit 2022+) | Preferência do usuário; dispensa impressora PDF virtual |
 
 ## Pendências e riscos

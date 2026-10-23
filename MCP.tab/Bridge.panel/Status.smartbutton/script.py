@@ -12,7 +12,7 @@ extension_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname
 if extension_root not in sys.path:
     sys.path.insert(0, extension_root)
 from revit_mcp import approval
-from revit_mcp.pairing import PairingError, disable_pairing, enable_pairing, is_paired
+from revit_mcp.pairing import PairingError, auto_pair, disable_pairing, enable_pairing, is_paired
 
 TITLE = "Revit MCP"
 DISCONNECT_OPTION = u"Desconectar"
@@ -33,6 +33,10 @@ def _apply(button, folder, paired):
 
 def __selfinit__(script_cmp, ui_button_cmp, __rvt__):
     # Runs when pyRevit loads the ribbon; never block loading over the state.
+    try:
+        auto_pair()
+    except Exception:
+        pass
     try:
         _apply(ui_button_cmp, script_cmp.directory, is_paired())
     except Exception:
@@ -91,7 +95,9 @@ def _manage():
     elif choice == DISCONNECT_OPTION:
         approval.set_auto_approved(False)
         disable_pairing()
-        forms.alert(u"Disconnected. Novos pedidos do MCP serão recusados.", title=TITLE)
+        forms.alert(u"Disconnected. Novos pedidos do MCP serão recusados.",
+                    sub_msg=u"Fica desconectado até você clicar aqui de novo, "
+                            u"mesmo depois de reabrir o Revit.", title=TITLE)
     elif choice == ROTATE_OPTION:
         enable_pairing()
         forms.alert(u"Segredo trocado. Continua Connected.", title=TITLE)

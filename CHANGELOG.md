@@ -41,6 +41,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **Pareamento automático**: ao carregar a extensão, o usuário do Windows é pareado
+  sozinho (sem clicar em Disconnected). *Desconectar* continua valendo, inclusive
+  depois de reabrir o Revit, até clicar no botão de novo (`pairing.disabled`).
 - **`docs/roteiro-de-testes.md`**: todos os testes pendentes no Revit (preparação,
   segurança, botões do ribbon e as tools 001–020), cada um com o pedido ao agente e
   o resultado esperado, a ordem do teste mínimo e as decisões a confirmar com o escritório.
