@@ -501,8 +501,11 @@ def wall_segments(walls):
 _failure_collector = failure_collector
 
 
-def run_batch(doc, name, plans, build, commit, noun):
+def run_batch(doc, name, plans, build, commit, noun, prepare=None):
     """Build every plan inside one transaction, all or nothing.
+
+    prepare(doc, index, plan), when given, runs for every plan first and its
+    work is committed (Batch.checkpoint) before the builds, in the same group.
 
     plans: [(index, plan)]. build(doc, index, plan) returns (result, after); after
     is None or a function(result) called after regeneration that returns an error
@@ -516,6 +519,27 @@ def run_batch(doc, name, plans, build, commit, noun):
     errors = []
     batch.start()
     try:
+        if prepare is not None:
+            for index, plan in plans:
+                try:
+                    prepare(doc, index, plan)
+                except ItemError as e:
+                    errors.append({"index": index, "error": e.text})
+                except Exception as e:
+                    errors.append({"index": index, "error": error_text(e)})
+            if errors:
+                batch.rollback()
+                return {"status": "error",
+                        "error": "{} of {} {} failed in Revit; nothing was created".format(
+                            len(errors), len(plans), noun),
+                        "created": 0, "errors": errors,
+                        "warnings": collector.warnings[:MAX_WARNINGS]}
+            if not batch.checkpoint():
+                return {"status": "error",
+                        "error": "Revit did not commit the {} ({}); nothing was created".format(
+                            noun, batch.status),
+                        "created": 0, "errors": [{"error": e} for e in collector.errors],
+                        "warnings": collector.warnings[:MAX_WARNINGS]}
         checks = []
         for index, plan in plans:
             try:
@@ -697,21 +721,28 @@ def create_rooms(doc, rooms, defaults, commit):
     if errors:
         return _invalid(errors, len(rooms), "rooms")
 
+    def prepare(doc, index, plan):
+        # Separation lines bound rooms only once their transaction commits, so
+        # run_batch commits them (same group, same undo step) before the rooms.
+        item, level = plan["item"], plan["level"]
+        if item.get("boundary") is None:
+            return
+        z = level_z(level)
+        plane = DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisZ, DB.XYZ(0, 0, z))
+        sketch = DB.SketchPlane.Create(doc, plane)
+        curves = DB.CurveArray()
+        for a, b in polygon_edges(item["boundary"]):
+            curves.Append(DB.Line.CreateBound(DB.XYZ(to_feet(a[0]), to_feet(a[1]), z),
+                                              DB.XYZ(to_feet(b[0]), to_feet(b[1]), z)))
+        lines = doc.Create.NewRoomBoundaryLines(sketch, curves, plan["separation_view"])
+        plan["separation_line_ids"] = [element_id_value(c.Id) for c in lines]
+
     def build(doc, index, plan):
         item, level, point = plan["item"], plan["level"], plan["point"]
         result = {"index": index, "level": element_name(level),
                   "point": [round(point[0], 3), round(point[1], 3)]}
-        if item.get("boundary") is not None:
-            z = level_z(level)
-            plane = DB.Plane.CreateByNormalAndOrigin(DB.XYZ.BasisZ, DB.XYZ(0, 0, z))
-            sketch = DB.SketchPlane.Create(doc, plane)
-            curves = DB.CurveArray()
-            for a, b in polygon_edges(item["boundary"]):
-                curves.Append(DB.Line.CreateBound(DB.XYZ(to_feet(a[0]), to_feet(a[1]), z),
-                                                  DB.XYZ(to_feet(b[0]), to_feet(b[1]), z)))
-            lines = doc.Create.NewRoomBoundaryLines(sketch, curves, plan["separation_view"])
-            result["separation_line_ids"] = [element_id_value(c.Id) for c in lines]
-            doc.Regenerate()
+        if plan.get("separation_line_ids") is not None:
+            result["separation_line_ids"] = plan["separation_line_ids"]
         uv = DB.UV(to_feet(point[0]), to_feet(point[1]))
         room = doc.Create.NewRoom(level, uv)
         result["element_id"] = element_id_value(room.Id)
@@ -748,7 +779,9 @@ def create_rooms(doc, rooms, defaults, commit):
 
         return result, after
 
-    return run_batch(doc, "MCP: create rooms", plans, build, commit, "rooms")
+    needs_lines = any(plan["item"].get("boundary") is not None for _, plan in plans)
+    return run_batch(doc, "MCP: create rooms", plans, build, commit, "rooms",
+                     prepare=prepare if needs_lines else None)
 
 
 # ---------------------------------------------------------------------------

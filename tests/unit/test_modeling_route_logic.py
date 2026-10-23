@@ -569,6 +569,20 @@ def test_room_by_boundary_draws_separation_lines(modeling, doc):
     assert "separation_line_ids" not in room and "tag" not in room
 
 
+def test_separation_lines_are_committed_before_the_room(modeling, doc):
+    # Revit 2024: lines bound a room only after their transaction commits
+    # (found in the Revit test of 2026-10-22: area 0 in a single transaction).
+    ViewPlan(doc, "Planta", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level0)
+    result = modeling.create_rooms(doc, [{"boundary": [[0, 0], [2, 0], [2, 2], [0, 2]]}],
+                                   {"tag": False}, commit=True)
+    assert result["status"] == "success", result
+    events = [e for e in LOG if e in ("t.commit", "group.assimilate")
+              or (isinstance(e, tuple) and e[0] == "NewRoomBoundaryLines")]
+    assert events[0][0] == "NewRoomBoundaryLines"
+    assert events[1:] == ["t.commit", "t.commit", "group.assimilate"]
+    assert len(result["results"][0]["separation_line_ids"]) == 4
+
+
 def test_room_tag_skipped_outside_plan_of_level(modeling, doc):
     doc.enclosed.append([(0, 0), (4 * FT, 0), (4 * FT, 3 * FT), (0, 3 * FT)])
     doc.ActiveView = ViewPlan(doc, "Planta 1", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level1)

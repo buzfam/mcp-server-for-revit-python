@@ -73,17 +73,37 @@ class Batch(object):
 
     def __init__(self, doc, name):
         DB = _db()
+        self.doc, self.name = doc, name
         self.collector = failure_collector()
         self.group = DB.TransactionGroup(doc, name)
         self.transaction = DB.Transaction(doc, name)
 
-    def start(self):
-        self.group.Start()
+    def _start_transaction(self):
         options = self.transaction.GetFailureHandlingOptions()
         options.SetFailuresPreprocessor(self.collector)
         options.SetClearAfterRollback(True)
         self.transaction.SetFailureHandlingOptions(options)
         self.transaction.Start()
+
+    def start(self):
+        self.group.Start()
+        self._start_transaction()
+
+    def checkpoint(self):
+        """Commit what was done so far and go on in a new transaction of the
+        same group (still one undo step, still rolled back by a dry run).
+        Needed when later changes depend on committed state: room separation
+        lines bound rooms only after their transaction commits.
+        Returns False (and rolls the group back) when Revit did not commit."""
+        DB = _db()
+        status = self.transaction.Commit()
+        if status != DB.TransactionStatus.Committed:
+            self.group.RollBack()
+            self.status = status
+            return False
+        self.transaction = DB.Transaction(self.doc, self.name)
+        self._start_transaction()
+        return True
 
     def rollback(self):
         """Discard everything (an item failed before the commit)."""
