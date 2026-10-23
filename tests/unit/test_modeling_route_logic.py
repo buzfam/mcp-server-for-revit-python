@@ -196,6 +196,12 @@ class FilteredElementCollector:
         self.items = [e for e in self.items if getattr(e, "category", None) == category]
         return self
 
+    def WhereElementIsElementType(self):
+        return self
+
+    def GetElementCount(self):
+        return len(self.items)
+
     def ToElements(self):
         return self.items
 
@@ -279,7 +285,8 @@ def modeling(monkeypatch):
         FailureProcessingResult=SimpleNamespace(Continue="Continue",
                                                 ProceedWithRollBack="ProceedWithRollBack"),
         BuiltInParameter=BuiltInParameter(),
-        BuiltInCategory=SimpleNamespace(OST_Doors="doors", OST_Windows="windows"),
+        BuiltInCategory=SimpleNamespace(OST_Doors="doors", OST_Windows="windows",
+                                        OST_RoomTags="room_tags"),
         ElementTypeGroup=SimpleNamespace(WallType="WallType"),
         WallUtils=SimpleNamespace(DisallowWallJoinAtEnd=lambda w, end: LOG.append(("nojoin", end))),
         Plane=SimpleNamespace(CreateByNormalAndOrigin=lambda n, o: LOG.append(("plane", o.Z))),
@@ -314,6 +321,8 @@ def doc():
     d.generic = WallType(d, "Generic - 200mm")
     d.brick = WallType(d, "Tijolo 15")
     d.default_wall_type = d.generic
+    d.room_tag_type = SimpleNamespace(category="room_tags")
+    d.add(d.room_tag_type)
     return d
 
 
@@ -565,6 +574,18 @@ def test_room_tag_skipped_outside_plan_of_level(modeling, doc):
     doc.ActiveView = ViewPlan(doc, "Planta 1", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level1)
     result = modeling.create_rooms(doc, [{"point": [1, 1]}], {}, commit=True)
     assert result["results"][0]["tag"].startswith("skipped")
+
+
+def test_room_tag_skipped_without_room_tag_family(modeling, doc):
+    # Revit creates typeless, invisible room tags when no tag family is loaded.
+    doc.elements = dict((k, v) for k, v in doc.elements.items() if v is not doc.room_tag_type)
+    doc.enclosed.append([(0, 0), (4 * FT, 0), (4 * FT, 3 * FT), (0, 3 * FT)])
+    doc.ActiveView = ViewPlan(doc, "Planta 0", IsTemplate=False, ViewType="FloorPlan", GenLevel=doc.level0)
+    result = modeling.create_rooms(doc, [{"point": [1, 1]}], {}, commit=True)
+    room = result["results"][0]
+    assert room["tag"].startswith("skipped: no room tag family")
+    assert "tag_id" not in room
+    assert not any(entry[0] == "NewRoomTag" for entry in LOG if isinstance(entry, tuple))
 
 
 def test_existing_room_and_missing_plan_are_rejected(modeling, doc):

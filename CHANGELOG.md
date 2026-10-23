@@ -7,6 +7,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- **`create_rooms` criava etiquetas invisíveis** quando o modelo não tinha família de
+  etiqueta de ambiente: o Revit aceita a etiqueta sem tipo e a tool devolvia `tag_id`.
+  Agora a etiqueta é pulada com `tag: "skipped: no room tag family is loaded ..."`
+  (achado no teste no Revit 2024 pt-BR, 2026-10-22).
 - **Dados descartados quando a resposta tinha mensagem** (bug herdado do upstream
   em `tools/utils.py::format_response`): uma listagem cortada, como
   `get_current_view_elements` com `limit`, chegava ao agente só com "Results

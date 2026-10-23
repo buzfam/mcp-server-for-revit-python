@@ -682,10 +682,16 @@ def create_rooms(doc, rooms, defaults, commit):
                 raise ItemError("No floor plan of level '{}' to draw room separation "
                                 "lines in".format(element_name(level)))
         tag_view = None
-        if item.get("tag", True) is not False and plan_view_of(active_view, level):
+        if item.get("tag", True) is not False and plan_view_of(active_view, level) \
+                and room_tag_loaded:
             tag_view = active_view
         return {"item": item, "level": level, "point": point,
                 "separation_view": separation_view, "tag_view": tag_view}
+
+    # Without a room tag family Revit still creates typeless, invisible tags.
+    room_tag_loaded = DB.FilteredElementCollector(doc) \
+        .OfCategory(DB.BuiltInCategory.OST_RoomTags) \
+        .WhereElementIsElementType().GetElementCount() > 0
 
     plans, errors = _resolve_all(rooms, resolve)
     if errors:
@@ -725,6 +731,9 @@ def create_rooms(doc, rooms, defaults, commit):
                 result["tag_id"] = element_id_value(tag.Id)
             except Exception as e:
                 result["tag"] = u"failed: {}".format(error_text(e))
+        elif item.get("tag", True) is not False and not room_tag_loaded:
+            result["tag"] = ("skipped: no room tag family is loaded "
+                             "(Insert > Load Family > Annotations)")
         elif item.get("tag", True) is not False:
             result["tag"] = "skipped: the active view is not a floor plan of this level"
 
