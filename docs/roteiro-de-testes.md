@@ -23,6 +23,46 @@ de 2026-10-20 estão marcados nas specs e não se repetem aqui.
 - Ao terminar, mande este arquivo (com as marcações) e o `smoke-report.json` para quem
   vai corrigir, ou cole no Claude: ele marca os checklists das specs.
 
+## Resultados da sessão de 2026-10-22 (remoto, PC 192.168.68.111)
+
+Revit 2024 pt-BR, modelo vazio `karlipe` (template sem famílias de porta, janela,
+etiquetas nem carimbo). Testes feitos pelo agente pela rede, com o usuário clicando
+em Permitir no PC. Desfazer (Ctrl+Z) e o que aparece na tela **não** foram conferidos.
+
+**Passou**
+- S-07 smoke remoto: 401 sem token e com token errado, 45 tools, 16 ok, 0 falhas.
+- T-FMT-01: `get_current_view_elements` sem o aviso do smoke (dados vêm com o corte).
+- Leitura: `audit_template` (5 s, `revit_purge`, 16 seções, 19 itens, sem erros, mas num
+  `.rvt`, não no `.rte`), `phases_report`, `check_sheets`, `check_render_materials`,
+  `quantities_by_rule`, `export_rooms` (8 ambientes, 49,92 m²).
+- T-011-01 (prévia com aviso de sobreposição em português em `warnings`), T-011-03
+  (12 paredes), T-011-04 (8 ambientes; áreas batem com parede de 0,20 m), T-011-16.
+- `room_finishes` da Sala: perímetro 15,00; parede 15,00 × 2,44 = 36,58; pintura 50,52.
+  Depois do forro: altura 2,60 (`ceiling_height`), parede 39,00, pintura 52,94.
+- T-020-01, T-020-02 (8 pisos), T-020-06 (`existing_floor`), T-020-08 (8 forros a 2,60),
+  T-020-12 (409 com `expected_count` errado, sem diálogo).
+- T-016-04 (prévia de fase: 12 paredes "Construção nova" → "Existente").
+- T-018-08 prévia (ambientes 101–108).
+- T-007-01, T-007-02 (2 folhas sem carimbo), posicionamento da planta na A-101.
+- T-017-01, T-017-02 (2 PDFs nativos em 6 s, `emissao.json` e histórico), prévia
+  seguinte com `exists: true`, T-017-12 (`C:\Windows` e `\\servidor` recusados).
+- 008/010: modelo de vista e tabela inexistentes → erro claro.
+- `execute_revit_code` com erro: 500 com traceback e `partial_output`.
+
+**Achados**
+- **Bug corrigido** (`9b70cfd`): `create_rooms` devolvia `tag_id` sem família de
+  etiqueta de ambiente carregada (o Revit cria etiquetas sem tipo, invisíveis).
+  Revalidar: as 8 etiquetas desta sessão provavelmente estão invisíveis; apague-as.
+- T-018-08: na ordem de leitura o Lavabo (centro y 2,70) vem antes da Sala (y 1,80),
+  porque fica numa "linha" mais alta. Confirmar com o escritório se essa ordem serve.
+- Altura padrão dos ambientes do template: 2,44 m (8 pés).
+- O PC caiu da rede uma vez no meio das chamadas (Wi-Fi/energia). O IP mudou de .108 para .111.
+
+**Pendente: precisa carregar famílias no PC** (porta, janela, etiquetas de
+ambiente/porta/janela e um carimbo): T-011-05 a T-011-15, T-007-03 a T-007-10 com
+carimbo, todo o 009, T-015 com vãos, T-018 de portas e janelas, T-017 com carimbo
+e revisão.
+
 ## Ordem sugerida e teste mínimo
 
 São cerca de 200 itens; não precisa fazer tudo de uma vez. **Primeira sessão (≈ 2 h)**,

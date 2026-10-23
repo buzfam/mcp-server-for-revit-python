@@ -7,6 +7,11 @@ _Última atualização: 2026-10-22_
 
 ## Estado atual
 
+- **2026-10-22: primeira rodada remota no Revit** (PC 192.168.68.111, modelo vazio):
+  leitura, modelagem, pisos/forros, folhas e PDF passaram; 1 bug corrigido
+  (`create_rooms` com etiqueta invisível); pareamento passou a ser automático.
+  Resultado e pendências em `docs/roteiro-de-testes.md` (seção "Resultados").
+  **Pendente: testes que precisam de famílias carregadas** (porta, janela, etiquetas, carimbo).
 - Fork sincronizado com o upstream em `6ca46b3` (merge do PR #69 upstream).
 - **Homologação iniciada (2026-10-20)** num PC com Revit 2024 + pyRevit 7.0.0:
   modo remoto validado pela rede (401 sem token/token errado, `initialize`,
