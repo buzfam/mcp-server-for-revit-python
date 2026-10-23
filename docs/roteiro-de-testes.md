@@ -49,6 +49,13 @@ em Permitir no PC. Desfazer (Ctrl+Z) e o que aparece na tela **não** foram conf
 - 008/010: modelo de vista e tabela inexistentes → erro claro.
 - `execute_revit_code` com erro: 500 com traceback e `partial_output`.
 
+**Depois das correções (mesma sessão)**
+- `create_rooms` por contorno: área 0 → corrigido (`3409088`) e **revalidado**: Deck 3 × 3 m = 9,00 m².
+- Etiqueta sem família: **revalidado**, `tag: "skipped: no room tag family is loaded ..."`.
+- T-016-05: 12 paredes passaram a "Existente" (real, um diálogo).
+- Ainda não testados no PC: pareamento automático (B-01/S-03), Emitir PDF escolhendo a pasta
+  (inclusive rede) e o Auditar template salvando Excel + HTML (B-32).
+
 **Achados**
 - **Bug corrigido** (`9b70cfd`): `create_rooms` devolvia `tag_id` sem família de
   etiqueta de ambiente carregada (o Revit cria etiquetas sem tipo, invisíveis).
