@@ -606,7 +606,13 @@ def audit_export_helpers():
               "checklist": [{"item": 7, "title": u"Categorias", "coverage": u"conferir a olho",
                              "sections": [], "check_manually": u"V/G"}]}
     data = ae.audit_xlsx(report, today=u"2026-10-22")
-    archive = zipfile.ZipFile(io.BytesIO(data))
+    # IronPython's zipfile cannot read from io.BytesIO; read the bytes back
+    # from disk, as Excel will.
+    zip_folder = tempfile.mkdtemp()
+    zip_path = os.path.join(zip_folder, "check.xlsx")
+    with open(zip_path, "wb") as stream:
+        stream.write(data)
+    archive = zipfile.ZipFile(zip_path)
     workbook = archive.read("xl/workbook.xml").decode("utf-8")
     assert u'name="Fam\u00edlias"' in workbook and u'name="Limpeza (pr\u00e9via)"' in workbook
     for part in archive.namelist():
