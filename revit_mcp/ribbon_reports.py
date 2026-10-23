@@ -141,8 +141,14 @@ def capped(items, limit=MAX_LISTED):
     return items[:limit], max(0, len(items) - limit)
 
 
-def more_line(count):
-    return md(u"... e mais {} (veja o JSON para a lista completa).".format(count)) if count else None
+AUDIT_MORE_HINT = u"veja a planilha Excel para a lista completa"
+
+
+def more_line(count, hint=None):
+    """"... e mais N." (with the hint in parentheses), or None when count is 0."""
+    if not count:
+        return None
+    return md(u"... e mais {}{}.".format(count, u" ({})".format(hint) if hint else u""))
 
 
 def plural(count, one, many):
@@ -632,7 +638,7 @@ def audit_report(report, link=None):
         blocks.append(table(u"", [u"Id", u"Nome"],
                             [[_link(link, i.get("id")), cell(_item_label(i))] for i in shown]))
         hidden = summary.get("unused_count", 0) - len(shown)
-        blocks.append(more_line(max(more, hidden)))
+        blocks.append(more_line(max(more, hidden), AUDIT_MORE_HINT))
 
     naming = sections.get("naming") or {}
     for kind in sorted(naming):
@@ -643,7 +649,8 @@ def audit_report(report, link=None):
         shown, more = capped(check.get("violations"))
         blocks.append(table(u"", [u"Id", u"Nome"],
                             [[_link(link, v.get("id")), cell(v.get("name"))] for v in shown]))
-        blocks.append(more_line(max(more, check.get("violations_count", 0) - len(shown))))
+        blocks.append(more_line(max(more, check.get("violations_count", 0) - len(shown)),
+                                AUDIT_MORE_HINT))
 
     purge = sections.get("purge_preview")
     if purge:
@@ -658,7 +665,7 @@ def audit_report(report, link=None):
         blocks.append(table(u"", [u"Id", u"Tipo", u"Categoria", u"Nome"],
                             [[_link(link, i.get("id")), cell(i.get("kind")),
                               cell(i.get("category")), cell(i.get("name"))] for i in shown]))
-        blocks.append(more_line(max(more, purge.get("count", 0) - len(shown))))
+        blocks.append(more_line(max(more, purge.get("count", 0) - len(shown)), AUDIT_MORE_HINT))
         extra = purge.get("not_in_revit_purge") or {}
         for key in ("view_templates", "filters"):
             summary = extra.get(key) or {}

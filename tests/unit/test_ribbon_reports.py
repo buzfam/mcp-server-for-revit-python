@@ -173,7 +173,7 @@ def test_material_report_lists_shared_families_and_more_line():
         [{"rule": "name_pattern", "severity": "error", "material": u"m{}".format(i)}
          for i in range(rr.MAX_LISTED + 2)]
     text = rr.as_text(rr.material_report({"problems": problems, "summary": {}}))
-    assert u"GEN | A, B, C" in text and u"... e mais 2" in text
+    assert u"GEN | A, B, C" in text and u"... e mais 2." in text
 
 
 def test_material_report_without_problems():
@@ -368,7 +368,8 @@ def test_audit_report():
     assert u"Nomenclatura de views: 1 fora do padrão" in text and u"<a>11</a> | vista" in text
     assert u"Prévia do Limpar não utilizados: 2 item(ns)" in text and u"Nada foi apagado" in text
     assert u"<a>21</a> | FamilySymbol | Portas | Porta: 80" in text
-    assert u"... e mais 1" in text
+    assert u"... e mais 1 (veja a planilha Excel para a lista completa)." in text
+    assert u"JSON" not in text
     assert u"1 modelos de vista sem uso" in text
     assert u"Níveis e eixos | automática | Níveis e eixos" in text
     assert u"Famílias: skipped: time budget" in text

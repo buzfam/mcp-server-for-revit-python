@@ -7,6 +7,10 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
 ## [Unreleased]
 
 ### Corrigido
+- **Ambiente por contorno (`create_rooms` com `boundary`) saía com área 0** no Revit 2024:
+  as linhas separadoras só limitam ambientes depois que a transação é gravada. Agora
+  elas são gravadas antes dos ambientes, no mesmo grupo (continua um Ctrl+Z e a prévia
+  continua desfazendo tudo).
 - **`create_rooms` criava etiquetas invisíveis** quando o modelo não tinha família de
   etiqueta de ambiente: o Revit aceita a etiqueta sem tipo e a tool devolvia `tag_id`.
   Agora a etiqueta é pulada com `tag: "skipped: no room tag family is loaded ..."`
@@ -41,6 +45,9 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
   (`bulk_set_parameters`).
 
 ### Adicionado
+- **Emitir PDF pergunta onde salvar**: pasta padrão, última pasta usada ou outra pasta,
+  inclusive no servidor da rede (`\\servidor\...` ou unidade mapeada). Pasta de rede só
+  pelo botão; pelo agente continua bloqueada.
 - **Pareamento automático**: ao carregar a extensão, o usuário do Windows é pareado
   sozinho (sem clicar em Disconnected). *Desconectar* continua valendo, inclusive
   depois de reabrir o Revit, até clicar no botão de novo (`pairing.disabled`).
@@ -73,6 +80,19 @@ do upstream aparecem só como "Sincronizado com upstream `<sha>`".
     forro pelo contorno do ambiente, na fase do ambiente.
 - `expected_count` nas tools de fase e de piso/forro: o envio real recusa (409) se
   a quantidade mudou desde o dry run; o diálogo de aprovação mostra o que será alterado.
+
+### Alterado
+- **Auditar template salva planilha Excel e página HTML em vez de JSON.** Depois do
+  relatório, o botão pergunta "Salvar o relatório (planilha Excel e página HTML)?" e
+  grava `auditoria_<modelo>_<data>.xlsx` (abas Resumo, Checklist, uma por seção com
+  todos os itens e "Sem uso"/"Em uso", Limpeza (prévia)) e, ao lado, um `.html` com o
+  mesmo conteúdo da janela do pyRevit, para abrir no navegador ou imprimir em PDF.
+  A planilha é montada sem biblioteca externa (`revit_mcp/audit_export.py`).
+  Antes de substituir o `.html` (ou o `.xlsx`, se o nome veio sem extensão), o botão
+  pergunta; se a planilha estiver aberta no Excel, pede para fechá-la. Na janela do
+  pyRevit, as listas cortadas da auditoria dizem "veja a planilha Excel"; nos outros
+  botões do Conferir, que não gravam arquivo, a linha fica só "... e mais N." (antes
+  citava um JSON).
 
 ### Corrigido
 - Revisão das tools 007–015 (2026-10-21), entre outros:

@@ -586,6 +586,51 @@ def ribbon_report_helpers():
         shutil.rmtree(folder)
 
 
+def audit_export_helpers():
+    import io
+    import zipfile
+    import xml.etree.ElementTree as ET
+    from revit_mcp import audit_export as ae
+    name = u"Montante de canto trap\u00e9zoide"
+    report = {"document": u"Template <CV> & Cia", "is_template_file": True, "revit_version": "2024",
+              "limit": long(1000), "sections": {
+                  "families": {"count": long(1), "unused_count": long(1), "truncated": False,
+                               "items": [{"id": long(801), "name": name, "category": u"Montantes",
+                                          "in_place": False, "instances": long(0), "unused": True}]},
+                  "levels_grids": {"levels": {"count": 1, "unused_count": None, "truncated": False,
+                                              "items": [{"id": long(5), "name": u"T\u00e9rreo",
+                                                         "elevation_m": 3.048}]}},
+                  "purge_preview": {"count": 1, "by_kind": {"FamilySymbol": 1}, "source": "revit_purge",
+                                    "items": [{"id": long(9), "kind": "FamilySymbol",
+                                               "category": u"Portas", "name": name}]}},
+              "checklist": [{"item": 7, "title": u"Categorias", "coverage": u"conferir a olho",
+                             "sections": [], "check_manually": u"V/G"}]}
+    data = ae.audit_xlsx(report, today=u"2026-10-22")
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    workbook = archive.read("xl/workbook.xml").decode("utf-8")
+    assert u'name="Fam\u00edlias"' in workbook and u'name="Limpeza (pr\u00e9via)"' in workbook
+    for part in archive.namelist():
+        ET.fromstring(archive.read(part))
+    assert name in archive.read("xl/worksheets/sheet4.xml").decode("utf-8")  # Famílias
+    assert ae.clean_xml(u"a\x01b") == u"ab" and ae.escape(u"<&>") == u"&lt;&amp;&gt;"
+    assert ae.sheet_name(u"a/b", set()) == u"a b"
+    assert ae.sheet_name(u"History", set()) == u"History (2)"
+    assert ae.sheet_name(u"x" * 30 + u"'y", set()) == u"x" * 30
+    assert ae.element_kind("FamilySymbol") == u"Tipo de fam\u00edlia"
+    assert ae.cell_xml(u"A1", float("nan"), False).endswith(u">nan</t></is></c>")
+    page = ae.audit_html(report, today=u"2026-10-22")
+    assert name in page and u"Template &lt;CV&gt; &amp; Cia" in page
+    folder = tempfile.mkdtemp()
+    try:
+        xlsx, html = ae.write_audit_files(os.path.join(folder, u"sa\u00edda"), report)
+        assert zipfile.is_zipfile(xlsx) and os.path.isfile(html)
+        assert ae.existing_outputs(os.path.join(folder, u"sa\u00edda")) == [xlsx, html]
+        xlsx, html = ae.write_audit_files(xlsx, report)  # replaces both files
+        assert not [n for n in os.listdir(folder) if n.endswith(".tmp")]
+    finally:
+        shutil.rmtree(folder)
+
+
 print("IronPython {}".format(sys.version))
 compile_all()
 stub_pyrevit()
@@ -615,6 +660,7 @@ check("quantity review helpers", quantity_review_helpers)
 check("finish element helpers", finish_element_helpers)
 check("parameters number helpers", parameter_number_helpers)
 check("ribbon report helpers", ribbon_report_helpers)
+check("audit export helpers", audit_export_helpers)
 
 if failures:
     print("\n{} failure(s): {}".format(len(failures), ", ".join(failures)))

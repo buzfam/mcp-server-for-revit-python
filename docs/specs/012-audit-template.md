@@ -195,6 +195,23 @@ A mesma tabela volta na resposta em `checklist` (só com as seções presentes).
 (`GetActivePredefinedSettings`), `ExportPDFSettings`, `PrintSetting`,
 `ViewSheetSet`, `Document.GetUnusedElements` (Revit 2024+), `LabelUtils.GetLabelFor`.
 
+## Botão Auditar template (sem IA)
+O botão **MCP > Conferir > Auditar template** roda a mesma auditoria, com todas
+as seções e `limit` 1000, e mostra o relatório na janela do pyRevit
+(`revit_mcp/ribbon_reports.py::audit_report`). Depois pergunta "Salvar o
+relatório (planilha Excel e página HTML)?" e grava, lado a lado
+(`revit_mcp/audit_export.py`, sem biblioteca externa):
+
+- `auditoria_<modelo>_<AAAA-MM-DD>.xlsx`: abas "Resumo" (modelo, data, versão
+  do Revit, .rte/.rvt, totais e "sem uso" por lista, erros e tempo esgotado),
+  "Checklist" (19 itens), uma aba por lista com itens (colunas em português,
+  "Situação" = "Sem uso"/"Em uso", Id e contagens como números),
+  "Nomenclatura" (se houver regras) e "Limpeza (prévia)";
+- `auditoria_<modelo>_<AAAA-MM-DD>.html`: o mesmo conteúdo da janela do pyRevit,
+  com CSS embutido, para ler no navegador ou imprimir em PDF.
+
+O botão não grava mais JSON (quem precisa do JSON usa a tool).
+
 ## Testes
 - Unitário (wrapper, `tests/unit/test_audit_tools.py`): payload padrão só com
   `limit`; `sections` e `naming` enviados quando dados; validação sem ir ao
