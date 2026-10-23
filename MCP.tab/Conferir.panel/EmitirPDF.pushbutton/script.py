@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Emitir PDF (sem IA): a mesma emissão da tool export_sheets_pdf.
 
-1. Escolher as folhas (todas ou algumas).
+1. Escolher as folhas (todas ou algumas) e onde salvar (pasta padrão, a
+   última usada ou outra, inclusive no servidor da rede).
 2. Plano (dry run): pasta, nomes dos arquivos e avisos; confirmar.
 3. Se algum arquivo já existe, confirmar a substituição (o antigo vira .bak
    até o novo ser gravado e volta se a exportação falhar).
@@ -10,6 +11,8 @@ Quem clica é quem aprova, por isso não há o diálogo de aprovação do MCP; a
 emissão fica registrada no Histórico. As decisões são tomadas pelos dados da
 resposta (status "dry_run"/"success"/"error"), não pelo Response.status.
 """
+import io
+import json
 import os
 import sys
 from pyrevit import forms, revit
@@ -24,6 +27,51 @@ from revit_mcp import ribbon_reports as reports
 TITLE = u"Emitir PDF"
 ALL_SHEETS = u"Todas as folhas"
 SOME_SHEETS = u"Escolher folhas..."
+DEFAULT_FOLDER = u"Pasta padrão (Documentos\\RevitMCP\\Emissoes, uma pasta por emissão)"
+PICK_FOLDER = u"Escolher outra pasta..."
+LAST_FOLDER = u"Última pasta: {}"
+
+
+def settings_path():
+    return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"),
+                        "RevitMCPPython", "emitir_pdf.json")
+
+
+def last_folder():
+    try:
+        with io.open(settings_path(), encoding="utf-8") as stream:
+            folder = json.loads(stream.read()).get("last_folder")
+        return folder if folder and os.path.isdir(folder) else None
+    except Exception:
+        return None
+
+
+def remember_folder(folder):
+    try:
+        path = settings_path()
+        if not os.path.isdir(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+        pdf_export.write_text_file(path, pdf_export.json_text({"last_folder": folder}) + u"\n")
+    except Exception:
+        pass
+
+
+def chosen_folder():
+    """None for the default dated folder, a path, or False if cancelled."""
+    previous = last_folder()
+    options = [DEFAULT_FOLDER]
+    if previous:
+        options.append(LAST_FOLDER.format(previous))
+    options.append(PICK_FOLDER)
+    choice = forms.CommandSwitchWindow.show(options, message=u"Onde salvar os PDFs?")
+    if not choice:
+        return False
+    if choice == DEFAULT_FOLDER:
+        return None
+    if previous and choice == LAST_FOLDER.format(previous):
+        return previous
+    folder = forms.pick_folder(title=u"Pasta para os PDFs")
+    return folder or False
 
 
 def chosen_sheets(doc):
@@ -54,9 +102,15 @@ def main():
     data = chosen_sheets(doc)
     if data is None:
         return
+    folder = chosen_folder()
+    if folder is False:
+        return
+    if folder:
+        data["folder"] = folder
 
     # The dry run never calls approve; refusing everything is the safe default.
-    plan = pdf_export.issue_pdfs(doc, dict(data), reports.replacement_guard([]))
+    plan = pdf_export.issue_pdfs(doc, dict(data), reports.replacement_guard([]),
+                                 local_user=True)
     if not reports.is_plan(plan.data):
         show_error(plan)
         return
@@ -80,10 +134,12 @@ def main():
     run.update({"dry_run": False, "folder": folder, "issued_at": plan.data["issued_at"],
                 "overwrite": reports.needs_overwrite(plan.data)})
     result = pdf_export.issue_pdfs(doc, run, reports.replacement_guard(
-        reports.replace_paths(plan.data)))
+        reports.replace_paths(plan.data)), local_user=True)
     if not reports.is_run_result(result.data):
         show_error(result)
         return
+    if data.get("folder"):
+        remember_folder(data["folder"])
     approval.record(u"Emitir PDF (botão)", u"usuário no Revit",
                     reports.pdf_history_summary(result.data))
     message, details, _ = reports.pdf_result_text(result.data)

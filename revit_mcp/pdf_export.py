@@ -160,15 +160,42 @@ def _is_under(path, parent):
     return path == parent or path.startswith(parent + u"\\")
 
 
-def validate_folder(path, blocked=SYSTEM_FOLDERS):
+def _segment_error(segment):
+    if segment in (u".", u".."):
+        return "folder must not contain '.' or '..'"
+    if any(char in INVALID_NAME_CHARS or ord(char) < 32 for char in segment):
+        return u"folder segment '{}' has a character not allowed by Windows".format(segment)
+    if segment != segment.rstrip(u". "):
+        return u"folder segment '{}' ends with a dot or a space".format(segment)
+    if u"~" in segment:
+        return u"folder segment '{}' has '~' (short 8.3 names are not allowed)".format(segment)
+    if segment.split(u".")[0].strip().lower() in RESERVED_NAMES:
+        return u"folder segment '{}' is a reserved Windows device name".format(segment)
+    return None
+
+
+def validate_folder(path, blocked=SYSTEM_FOLDERS, allow_network=False):
     """Check an output folder given by the user. Must be an absolute path on a
     local drive ("D:\\Projetos\\Emissao"): no UNC, no relative path, no "..",
-    not a drive root, not a system folder. Returns (folder, error)."""
+    not a drive root, not a system folder. Returns (folder, error).
+
+    allow_network=True (only the ribbon button, where the person at the PC
+    picks the folder) also accepts "\\\\servidor\\share\\pasta"; the MCP
+    route never sets it."""
     if not isinstance(path, basestring) or not path.strip():
         return None, "folder must be a non-empty text"
     text = _unicode(path)
     if text.startswith(u"\\\\") or text.startswith(u"//"):
-        return None, "folder must be on a local drive (network/UNC paths are not allowed)"
+        if not allow_network:
+            return None, "folder must be on a local drive (network/UNC paths are not allowed)"
+        parts = [part for part in text.replace(u"/", u"\\")[2:].split(u"\\") if part != u""]
+        if len(parts) < 2:
+            return None, "network folder must include a server and a share, like \\\\servidor\\projetos"
+        for segment in parts:
+            error = _segment_error(segment)
+            if error:
+                return None, error
+        return u"\\\\" + u"\\".join(parts), None
     text = text.replace(u"/", u"\\")
     if not re.match(u"^[A-Za-z]:\\\\", text):
         return None, "folder must be an absolute path starting with a drive, like D:\\Projetos\\Emissao"
@@ -176,16 +203,9 @@ def validate_folder(path, blocked=SYSTEM_FOLDERS):
     if not segments:
         return None, "folder must not be the root of a drive"
     for segment in segments:
-        if segment in (u".", u".."):
-            return None, "folder must not contain '.' or '..'"
-        if any(char in INVALID_NAME_CHARS or ord(char) < 32 for char in segment):
-            return None, u"folder segment '{}' has a character not allowed by Windows".format(segment)
-        if segment != segment.rstrip(u". "):
-            return None, u"folder segment '{}' ends with a dot or a space".format(segment)
-        if u"~" in segment:
-            return None, u"folder segment '{}' has '~' (short 8.3 names are not allowed)".format(segment)
-        if segment.split(u".")[0].strip().lower() in RESERVED_NAMES:
-            return None, u"folder segment '{}' is a reserved Windows device name".format(segment)
+        error = _segment_error(segment)
+        if error:
+            return None, error
     folder = text[0].upper() + u":\\" + u"\\".join(segments)
     for parent in blocked:
         if parent and _is_under(folder, parent):
@@ -810,13 +830,15 @@ def _bad(message, status=400, **extra):
     return routes.make_response(data=data, status=status)
 
 
-def issue_pdfs(doc, data, approve):
+def issue_pdfs(doc, data, approve, local_user=False):
     """Plan (dry_run, the default) or run one PDF issue for a request body.
 
     approve(action, preview) is called once before anything is written, with
     the readable action and the resolved folder/files; it returns None to go
     on or a response to stop. The route passes the MCP approval dialog; the
     ribbon button (Conferir > Emitir PDF) asks the user itself before calling.
+    local_user=True (ribbon button only, never from request data) lets the
+    person at the PC pick a network or mapped-drive folder.
     Returns a routes response (.data and .status)."""
     error = validate_options(data)
     if error:
@@ -840,13 +862,14 @@ def issue_pdfs(doc, data, approve):
     issued_at = now.isoformat()
     project = _project_info(doc)
     if data.get("folder") is not None:
-        folder, error = validate_folder(data["folder"], _blocked_folders())
+        folder, error = validate_folder(data["folder"], _blocked_folders(),
+                                        allow_network=local_user)
     else:
         folder, error = validate_folder(
             default_folder(_documents_folder(),
                            project["number"] or project["name"] or project["title"], now),
             _blocked_folders())
-    if error is None:
+    if error is None and not local_user:
         error = _dotnet_folder_error(folder)
     if error:
         return _bad(error)

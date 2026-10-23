@@ -191,6 +191,35 @@ def test_rejected_folders(pdf, path, message):
     assert folder is None and message in error, error
 
 
+@pytest.mark.parametrize("path, expected", [
+    (u"\\\\servidor\\projetos\\Casa Árvore\\", u"\\\\servidor\\projetos\\Casa Árvore"),
+    (u"//servidor/projetos", u"\\\\servidor\\projetos"),
+    (u"Z:\\Projetos\\Emissao", u"Z:\\Projetos\\Emissao"),
+])
+def test_network_folders_only_for_the_ribbon_button(pdf, path, expected):
+    assert pdf.validate_folder(path, allow_network=True) == (expected, None)
+    if path.startswith((u"\\\\", u"//")):
+        assert "UNC" in pdf.validate_folder(path)[1]
+
+
+@pytest.mark.parametrize("path, message", [
+    (u"\\\\servidor", "server and a share"), (u"\\\\servidor\\..\\x", "'..'"),
+    (u"\\\\servidor\\share\\a?b", "not allowed"),
+])
+def test_rejected_network_folders(pdf, path, message):
+    folder, error = pdf.validate_folder(path, allow_network=True)
+    assert folder is None and message in error, error
+
+
+def test_route_never_allows_network_folders():
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(root, "revit_mcp", "pdf_export.py"), encoding="utf-8") as stream:
+        source = stream.read()
+    route = source[source.index("def register_pdf_export_routes"):]
+    assert re.findall(r"issue_pdfs\(([^)]*)\)", route) == ["doc, data, approve"]
+
+
 def test_default_folder(pdf):
     now = datetime.datetime(2026, 10, 21, 9, 5)
     assert pdf.default_folder(u"C:\\Users\\carol\\Documents", u"P-07: Casa", now) == \
@@ -282,11 +311,11 @@ def route(pdf, monkeypatch, tmp_path):
     out = tmp_path / "out"
     real_validate = pdf.validate_folder
 
-    def validate(path, blocked=pdf.SYSTEM_FOLDERS):
+    def validate(path, blocked=pdf.SYSTEM_FOLDERS, allow_network=False):
         # POSIX temp folders stand in for D:\ in these tests.
         if isinstance(path, str) and path.startswith(str(tmp_path)):
             return path, None
-        return real_validate(path, blocked)
+        return real_validate(path, blocked, allow_network)
 
     monkeypatch.setattr(pdf, "authorize_request", authorize)
     monkeypatch.setattr(pdf, "validate_folder", validate)
